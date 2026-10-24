@@ -66,7 +66,7 @@ def create_app(database_url=None):
                 s.rollback()
                 raise HTTPException(409, '草稿已处理，请刷新')
             s.commit()
-            return {'status': c.status}
+            return {'status': 'rejected'}
 
     @app.get('/api/projects/{pid}/checks')
     def checks(pid: str):

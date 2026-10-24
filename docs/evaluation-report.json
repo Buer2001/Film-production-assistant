@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-24T07:51:10.151771+00:00",
+  "generated_at": "2026-10-24T08:02:08.138830+00:00",
   "mode": "offline_mock_model",
   "total": 25,
   "passed": 25,
@@ -9,127 +9,127 @@
     {
       "scenario": "test_parse_preserves_evidence_and_normalizes_names",
       "status": "passed",
-      "seconds": 0.016
+      "seconds": 0.006
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch0]",
       "status": "passed",
-      "seconds": 0.008
+      "seconds": 0.003
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch1]",
       "status": "passed",
-      "seconds": 0.007
+      "seconds": 0.002
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch2]",
       "status": "passed",
-      "seconds": 0.007
+      "seconds": 0.002
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch3]",
       "status": "passed",
-      "seconds": 0.007
+      "seconds": 0.002
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch4]",
       "status": "passed",
-      "seconds": 0.008
+      "seconds": 0.002
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch5]",
       "status": "passed",
-      "seconds": 0.009
+      "seconds": 0.003
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch6]",
       "status": "passed",
-      "seconds": 0.007
+      "seconds": 0.002
     },
     {
       "scenario": "test_parse_preview_draft_approval_and_stale_version",
       "status": "passed",
-      "seconds": 0.344
+      "seconds": 0.114
     },
     {
       "scenario": "test_impact_finds_paths_notices_and_isolates_project",
       "status": "passed",
-      "seconds": 0.271
+      "seconds": 0.096
     },
     {
       "scenario": "test_impact_of_pending_deletion_uses_existing_links",
       "status": "passed",
-      "seconds": 0.223
+      "seconds": 0.078
     },
     {
       "scenario": "test_new_schedule_draft_finds_shared_resources_and_notice",
       "status": "passed",
-      "seconds": 0.186
+      "seconds": 0.061
     },
     {
       "scenario": "test_parse_reports_missing_conditions_and_uncovered_text",
       "status": "passed",
-      "seconds": 0.007
+      "seconds": 0.003
     },
     {
       "scenario": "test_stale_parse_cannot_be_imported_and_unknown_resource_warns",
       "status": "passed",
-      "seconds": 0.201
+      "seconds": 0.062
     },
     {
       "scenario": "test_concurrent_parse_conversion_does_not_duplicate_drafts",
       "status": "passed",
-      "seconds": 0.182
+      "seconds": 0.062
     },
     {
       "scenario": "test_agent_recovers_from_invalid_tools_without_writing[confirm-args0]",
       "status": "passed",
-      "seconds": 0.156
+      "seconds": 0.05
     },
     {
       "scenario": "test_agent_recovers_from_invalid_tools_without_writing[search_records-args1]",
       "status": "passed",
-      "seconds": 0.146
+      "seconds": 0.047
     },
     {
       "scenario": "test_agent_recovers_from_invalid_tools_without_writing[propose_change-args2]",
       "status": "passed",
-      "seconds": 0.147
+      "seconds": 0.049
     },
     {
       "scenario": "test_confirmation_is_idempotent_and_old_changes_conflict",
       "status": "passed",
-      "seconds": 0.18
+      "seconds": 0.061
     },
     {
       "scenario": "test_failed_batch_is_atomic_and_project_scoped",
       "status": "passed",
-      "seconds": 0.143
+      "seconds": 0.05
     },
     {
-      "scenario": "test_notice_is_snapshot_and_becomes_stale",
+      "scenario": "test_notice_snapshot_remains_valid_after_scene_title_change",
       "status": "passed",
-      "seconds": 0.196
+      "seconds": 0.064
     },
     {
       "scenario": "test_schedule_checks_shared_resources_and_unknown_readiness",
       "status": "passed",
-      "seconds": 0.146
+      "seconds": 0.049
     },
     {
       "scenario": "test_unconfigured_agent_does_not_fake_success",
       "status": "passed",
-      "seconds": 0.136
+      "seconds": 0.038
     },
     {
       "scenario": "test_rejected_draft_cannot_be_confirmed_and_invalid_expense_rejected",
       "status": "passed",
-      "seconds": 0.147
+      "seconds": 0.045
     },
     {
       "scenario": "test_agent_tool_loop_creates_only_pending_draft",
       "status": "passed",
-      "seconds": 0.163
+      "seconds": 0.057
     }
   ]
 }

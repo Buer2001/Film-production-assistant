@@ -3,6 +3,7 @@ from fastapi import HTTPException
 from sqlalchemy import select, update
 from backend.common.database.store import Project, Record, Change, Notice, Event
 from backend.production.scheduling.checks import check_schedule
+from backend.production.notices.status import notice_status
 
 
 def rows(s, model, pid):
@@ -28,7 +29,7 @@ def state(s, pid):
     p = get_project(s, pid)
     records = [record_dict(r) for r in rows(s, Record, pid)]
     notices = [{'id': n.id, 'date': n.date, 'version': n.version, 'revision': n.revision,
-                'snapshot': n.snapshot, 'created_at': n.created_at, 'stale': n.revision != p.revision}
+                'snapshot': n.snapshot, 'created_at': n.created_at, **notice_status(n, records)}
                for n in rows(s, Notice, pid)]
     return {'id': p.id, 'name': p.name, 'revision': p.revision, 'records': records,
             'changes': [change_dict(c) for c in rows(s, Change, pid)], 'notices': notices,

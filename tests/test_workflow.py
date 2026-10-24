@@ -41,7 +41,7 @@ def test_failed_batch_is_atomic_and_project_scoped(client):
     assert client.post(f'/api/projects/{other}/changes/{good["id"]}/confirm').status_code == 404
 
 
-def test_notice_is_snapshot_and_becomes_stale(client):
+def test_notice_snapshot_remains_valid_after_scene_title_change(client):
     p = project(client)
     a = propose(client, p, 0, [{'kind': 'scene', 'data': {'title': '礼堂演讲'}}]).json()
     client.post(f'/api/projects/{p}/changes/{a["id"]}/confirm')
@@ -51,7 +51,8 @@ def test_notice_is_snapshot_and_becomes_stale(client):
     a = propose(client, p, 1, [{'kind': 'scene', 'id': record['id'], 'data': {'title': '改名'}}]).json()
     client.post(f'/api/projects/{p}/changes/{a["id"]}/confirm')
     state = client.get(f'/api/projects/{p}').json()
-    assert state['notices'][0]['stale'] is True
+    assert state['notices'][0]['stale'] is False
+    assert state['notices'][0]['reasons'] == []
     assert state['notices'][0]['snapshot'] == notice['snapshot']
     assert notice['version'] == 1
 
@@ -82,7 +83,10 @@ def test_rejected_draft_cannot_be_confirmed_and_invalid_expense_rejected(client)
     invalid = propose(client, p, 0, [{'kind': 'expense', 'data': {'title': '机票', 'category': '交通', 'amount': '100'}}])
     assert invalid.status_code == 422
     draft = propose(client, p, 0, [{'kind': 'task', 'data': {'title': '取消任务'}}]).json()
-    assert client.post(f'/api/projects/{p}/changes/{draft["id"]}/reject').status_code == 200
+    rejected = client.post(f'/api/projects/{p}/changes/{draft["id"]}/reject')
+    assert rejected.status_code == 200
+    assert rejected.json() == {'status': 'rejected'}
+    assert client.get(f'/api/projects/{p}').json()['changes'][0]['status'] == 'rejected'
     assert client.post(f'/api/projects/{p}/changes/{draft["id"]}/confirm').status_code == 409
     assert client.get(f'/api/projects/{p}').json()['revision'] == 0
 
