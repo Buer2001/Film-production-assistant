@@ -1,0 +1,13 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: film
+      POSTGRES_PASSWORD: film
+      POSTGRES_DB: film
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - film_data:/var/lib/postgresql/data
+volumes:
+  film_data:
