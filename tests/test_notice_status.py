@@ -89,7 +89,7 @@ def test_deleted_relevant_record(day, kind):
 
 def test_scene_deletion_alone_does_not_affect_status(day):
     from types import SimpleNamespace
-    from backend.production.notices.status import notice_status
+    from backend.tools.notice import notice_status
 
     snapshot = day[2]
     records = [r for r in snapshot['records'] if r['kind'] != 'scene']

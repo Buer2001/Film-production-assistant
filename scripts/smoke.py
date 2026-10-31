@@ -1,5 +1,6 @@
 """从项目根目录运行：python scripts/smoke.py，不需要模型或正式数据库。"""
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import socket
 import subprocess
@@ -12,6 +13,23 @@ import httpx
 
 ROOT = Path(__file__).resolve().parents[1]
 DAY = '2026-02-06'
+
+
+@contextmanager
+def temporary_workspace():
+    directory = tempfile.TemporaryDirectory(prefix='film-smoke-')
+    try:
+        yield directory.name
+    finally:
+        # Windows可能延迟释放已退出进程的文件句柄，有限重试但不吞掉最终失败。
+        for attempt in range(5):
+            try:
+                directory.cleanup()
+                break
+            except PermissionError:
+                if attempt == 4:
+                    raise
+                time.sleep(0.2)
 
 
 def equal(actual, expected, description):
@@ -110,7 +128,7 @@ def workflow(client):
 
 def main():
     try:
-        with tempfile.TemporaryDirectory(prefix='film-smoke-') as directory:
+        with temporary_workspace() as directory:
             temp = Path(directory)
             with socket.socket() as sock:
                 sock.bind(('127.0.0.1', 0))

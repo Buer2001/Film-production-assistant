@@ -2,12 +2,12 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
 import pytest
-from fastapi import HTTPException
+from backend.common.errors import BusinessError
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 from backend.main import create_app
 from backend.common.database.store import Change, Event, Project, Record
-from backend.production.service import confirm
+from backend.service.change import confirm
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def accept(client, pid, cid):
             try:
                 result = confirm(session, pid, cid)
                 return 200, result['status']
-            except HTTPException as exc:
+            except BusinessError as exc:
                 return exc.status_code, None
     return action
 

@@ -1,70 +1,35 @@
-"""Small transactional store. JSON payloads are validated by the business layer."""
-from datetime import datetime, timezone
-from uuid import uuid4
-from sqlalchemy import create_engine, String, Integer, JSON, Text
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+"""数据库连接和 Session；旧模型导入路径保留兼容，不在此定义业务表。"""
+import os
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import make_url
+from sqlalchemy.orm import sessionmaker
+from backend.common.database.base import Base, uid, now
+# 兼容旧调用方，确保所有地方复用同一 ORM 类，不重复定义表。
+from backend.models.project import Project
+from backend.models.record import Record
+from backend.models.change import Change
+from backend.models.notice import Notice
+from backend.models.event import Event
 
 
-def uid():
-    return str(uuid4())
-
-
-def now():
-    return datetime.now(timezone.utc).isoformat()
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-class Project(Base):
-    __tablename__ = 'projects'
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    name: Mapped[str] = mapped_column(String(200))
-    revision: Mapped[int] = mapped_column(Integer, default=0)
-
-
-class Record(Base):
-    __tablename__ = 'records'
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    project_id: Mapped[str] = mapped_column(String(36), index=True)
-    kind: Mapped[str] = mapped_column(String(30))
-    data: Mapped[dict] = mapped_column(JSON)
-
-
-class Change(Base):
-    __tablename__ = 'changes'
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    project_id: Mapped[str] = mapped_column(String(36), index=True)
-    base_revision: Mapped[int] = mapped_column(Integer)
-    reason: Mapped[str] = mapped_column(Text)
-    operations: Mapped[list] = mapped_column(JSON)
-    before: Mapped[list] = mapped_column(JSON)
-    status: Mapped[str] = mapped_column(String(20), default='pending')
-    created_at: Mapped[str] = mapped_column(String(50), default=now)
-
-
-class Notice(Base):
-    __tablename__ = 'notices'
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    project_id: Mapped[str] = mapped_column(String(36), index=True)
-    date: Mapped[str] = mapped_column(String(10))
-    version: Mapped[int] = mapped_column(Integer)
-    revision: Mapped[int] = mapped_column(Integer)
-    snapshot: Mapped[dict] = mapped_column(JSON)
-    created_at: Mapped[str] = mapped_column(String(50), default=now)
-
-
-class Event(Base):
-    __tablename__ = 'events'
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=uid)
-    project_id: Mapped[str] = mapped_column(String(36), index=True)
-    type: Mapped[str] = mapped_column(String(30))
-    data: Mapped[dict] = mapped_column(JSON)
-    created_at: Mapped[str] = mapped_column(String(50), default=now)
+def configured_url():
+    url = make_url(os.getenv('DATABASE_URL', 'sqlite:///./film_production.db'))
+    if url.get_backend_name() == 'mysql' and 'MYSQL_PASSWORD' in os.environ:
+        # 密码单独保存，避免 @、#、百分号等字符被当作 URL 结构。
+        url = url.set(password=os.environ['MYSQL_PASSWORD'])
+    return url
 
 
 def database(url):
-    engine = create_engine(url, **({'connect_args': {'check_same_thread': False}} if url.startswith('sqlite') else {}))
-    Base.metadata.create_all(engine)
+    parsed = make_url(url)
+    engine = create_engine(parsed, pool_pre_ping=True,
+        **({'connect_args': {'check_same_thread': False}} if parsed.get_backend_name() == 'sqlite' else {}))
+    if engine.dialect.name == 'sqlite':
+        @event.listens_for(engine, 'connect')
+        def enable_foreign_keys(connection, _):
+            # SQLite 默认不校验外键，新拆解表必须显式启用。
+            connection.execute('PRAGMA foreign_keys=ON')
+    # 新剧本表由专用增量迁移创建，旧公共表初始化保持兼容。
+    Base.metadata.create_all(engine, tables=[Project.__table__, Record.__table__,
+                             Change.__table__, Notice.__table__, Event.__table__])
     return engine, sessionmaker(engine, expire_on_commit=False)

@@ -1,8 +1,62 @@
 # 片场 · 学生制片工作台
 
-面向约20人的学生剧组，制片单人维护。筹备平行推进，制片估时和排期，Agent 查询项目并提交待确认修改。
+制片单人使用的助手。当前 V1 主入口为剧本拆解：输入原文 → 自动提取 → 系统内编辑核对 → 确认保存 → 按需导出。原筹备、排期、通告和 Agent 功能保留为旧业务，不自动关联新拆解数据。
+
+## V1 剧本拆解
+
+请求日志统一由中间件处理，文件为 `logs/app.jsonl`（5MB 轮转，保留三份备份）。报错中的“请求编号”可在文件中搜索，定位状态、耗时、异常栈及证据失败字段。不使用业务函数日志装饰器；不记录认证头、完整请求体或模型响应。目录通过 `LOG_DIR` 配置，相对路径以 project 为准。
+
+1. 创建或选择项目，粘贴文本或读取UTF-8 TXT（最多50,000字、200场）。原文先保存，再按场次标题分段；不确定边界保留并提示核对。
+2. 拆解任务在后台逐场运行，通过SSE把进度和单场结果推送到工作台。显示真实总场数、自动完成、模型失败、人工处理、排除、当前场次及用时，不展示虚假百分比或模型思维链。
+3. 完成一场即可查看、编辑、核对原文。单场失败保留原文及原因，其他场继续；本轮结束后可单场重试，也可人工填写后标记处理，或排除非场次。排除保留草稿，可撤销，确认时不入库。
+4. 编辑自动保存到服务端草稿文件（默认 .drafts/scripts，可由DRAFT_DIR配置），未确认结果不写正式scene_breakdowns。刷新恢复已完成结果；断线重新连接事件流，不重发整份模型请求。服务重启或中止后保留结果，未完成场次可重试或手工处理。
+5. 模型晚到和SSE事件不能覆盖人工字段；保存失败保留输入，支持重试和JSON备份。未保存时禁止切换项目、页面和版本。页数仍手填，缺失项需补齐或明确接受。
+6. 全部场次处理后人工确认，通过一个数据库事务写正式结果。入库失败草稿保留；重复确认不重复创建。已确认结果再次编辑也先保存文件草稿，再次确认后才更新正式表。
+7. 导入新版前先确认当前版；新版保留旧版，原文相同场次沿用已确认人工修改，变化场次提示匹配和差异。旧版只读。
+8. 导出基础XLSX包含拆解表和变更说明，未确认结果标注草稿，已排除行在工作台保留。尚未实测桌面Excel/WPS。
+
+草稿目录是确认前的恢复依据，请在需要保留未确认工作时同时备份；该目录被Git忽略。当前任务执行范围为本机单进程，不支持多实例共享文件草稿。更多实现和故障恢复说明见 [流式拆解](docs/streaming-breakdown.md)。
+
+数据库只新增 `scripts`、`scene_breakdowns` 两张表。Router → Service → DAO 分层，AI 提取、原文校验、输入转换及导出分开；模型通信复用公共客户端，不使用 Agent 循环。入口为 `/api/projects/{pid}/script-workspace`。
+
+启动时执行 `backend/common/database/migrations/script_v1.py` 的幂等增量建表检查，不删除或转换旧数据。修改旧表字段仍须另写迁移，不能清库替代。新表启用外键约束，不双写旧 `records`。
+
+当前仅支持文本/TXT；DOCX、PDF、OCR 尚未接入。旧场次不会自动迁入新拆解。超出结构或原文校验的模型结果不入库；字面证据不代表语义准确，仍须人工核对。真实模型质量及 PostgreSQL 尚未实测。
 
 ## 本地启动
+
+本地环境：Python 3.13、Node.js 24、npm 11。Python 依赖安装在 `project/.venv`，前端依赖在 `project/frontend/node_modules`。
+
+环境首次安装：在本目录执行 `python -m venv .venv`，再执行 `.\.venv\Scripts\python.exe -m pip install -r requirements.lock.txt`；前端在 `frontend` 目录执行 `npm ci`。`requirements.lock.txt` 记录本轮通过测试的 Python 3.13 依赖版本，`requirements.txt` 保留允许范围。已有 `.env` 时保留原配置，不覆盖。
+
+分别在两个 PowerShell 终端启动（无需激活虚拟环境）：
+
+```powershell
+.\scripts\run-backend.ps1
+```
+
+```powershell
+.\scripts\run-frontend.ps1
+```
+
+后端脚本固定使用项目虚拟环境，读取 `.env`，监听 `127.0.0.1:8000`；前端监听 `127.0.0.1:5173` 并代理后端。不要重复启动占用相同端口的实例。也可以按下方原始命令启动。
+
+用户选择本机 MySQL 和 DeepSeek。MySQL 配置见下文；模型默认 `LLM_BASE_URL=https://api.deepseek.com`、`LLM_MODEL=deepseek-flash`，按 [DeepSeek 官方文档](https://api-docs.deepseek.com/en/) 配置，在本地补填 `LLM_API_KEY`。密钥只保存在 `.env`，该文件和 `.venv` 均已被 Git 忽略。未填写模型配置时仍可手工编辑，自动拆解暂不可用。修改 `.env` 后重启后端。
+
+### 本机 MySQL
+
+在 `.env` 中配置以下内容，替换实际用户名、端口和库名：
+
+```dotenv
+DATABASE_URL=mysql+pymysql://YOUR_USER@127.0.0.1:3306/film_production?charset=utf8mb4
+MYSQL_PASSWORD=
+```
+
+密码单独填写，程序通过 SQLAlchemy URL 对象注入，不需要手工对特殊字符编码。驱动为 PyMySQL（含 MySQL 8 RSA 认证支持），已包含在依赖清单中。
+
+目标数据库需要先存在，使用 utf8mb4 字符集；启动后仅创建缺失的业务表，不删除已有数据。原文字段在 MySQL 使用 LONGTEXT，以容纳 50,000 字中文。旧 SQLite 数据不会自动迁移；如需迁移，必须另行核对并实施。
+
+2026-10-31：本机 MySQL80 服务运行中，连接代码和驱动已准备。等待用户提供账号、库名及本地密码后再切换实际 `.env` 数据库地址；暂保留原 SQLite 连接，尚未完成 MySQL 实库验证。
 
 在本目录打开 PowerShell：
 
@@ -33,17 +87,27 @@ npm run dev
 5. 费用分预算、报价、已确定、实际支出，使用十进制金额分别汇总。
 6. 发布通告保存完整快照，支持按日递增版本和 TXT 下载；不自动发送给剧组。当天拍摄安排或关联筹备事项变化时，旧通告标为待检查并列出原因；与该天无关的变更不再误报。
 7. Agent 可查询、检查、生成修改草稿。它没有确认、发布、任意 SQL 或文件操作工具。
-8. 在“剧本”中粘贴文本或读取 UTF-8 TXT，解析场次、人物、场地、道具和昼夜信息；展开原文证据核对后生成草稿，再在待确认区保存。需配置模型；最多50,000字、50场，不自动猜测拍摄日期或时长。
+8. “剧本”已切换到独立 V1 工作台，使用方法见上文。旧 `/scripts/parse` 和草稿导入接口暂保留兼容，前端不再调用；旧流程的 50 场限制不代表新工作台限制。
 9. 在“影响分析”按资源名称查询，或从记录、待确认草稿点击“分析影响”，查看相关场次、筹备、排期、影响路径及需复核通告。分析只读，建议通过编辑记录或 Agent 另行形成草稿。
 
 ## 结构
 
-- `backend/common`：数据库、模型客户端；确认和版本规则目前集中在业务服务，避免重复实现。
-- `backend/production`：结构化记录、事务确认、排期检查、费用汇总、通告快照与待检查判定。
-- `backend/agent`：工具注册、模型循环、上下文和提示词。
-- `frontend`：React 工作台，支持手机布局。
-- `tests`：一致性、项目隔离、通告和 Agent 权限测试，含多线程确认竞争与通告待检查判定。
-- `scripts/smoke.py`：真实 uvicorn 进程加临时 SQLite 的 HTTP 冒烟检查，不依赖模型。
+后端按技术层分包，包内再按业务命名；不再使用 production/业务/router.py 这种组织方式。
+
+- backend/router：HTTP 接口、参数接收、响应转换。
+- backend/service：业务流程、版本规则和事务边界。
+- backend/dao：数据库查询和修改，不自行提交事务。
+- backend/models：SQLAlchemy 表模型，不定义接口输入。
+- backend/schemas：Pydantic 输入输出及模型提取结构。
+- backend/agent：Agent接口、循环、上下文、工具注册和专用提示词集中管理。
+- backend/ai：公共模型客户端、剧本提取器和提示词。
+- backend/tools：文本、证据、导出、相似度及旧业务工具。
+- backend/common：数据库基础设施、共用 Session 依赖、业务异常、日志中间件。
+- backend/main.py：应用创建、生命周期和各 Router 注册。
+- frontend/src/features/scripts：剧本组件及 useScriptDraft 自动保存 Hook。
+- frontend/src/features/production：旧业务页面及状态 Hook；main.jsx 仅负责应用框架和组装。
+
+接口路径及数据库表不变，旧业务也已迁入对应层包；旧 production 目录已移除，Agent专用实现集中到独立agent包。详见 [架构说明](docs/architecture.md)。
 
 参考 jiaoshoujia 的公共底座、工具 schema 和 Agent 循环思路，未依赖其数据库配置或复制密钥。
 
@@ -55,7 +119,7 @@ npm run dev
 - 通告是否待检查，按当天拍摄安排和快照关联的筹备事项与当前数据比较；未录入的间接关系不会提示，仍需制片判断。
 - 原始资料暂手动粘贴；尚无 Word/Excel/PDF 上传解析、OCR、ASR、离线同步、向量检索。
 - 会话持久化保存，当前上下文读取最近3轮；长期历史以事件工具检索，不自动生成反思摘要。
-- 初始化使用 create_all；既有表结构升级尚需添加正式迁移脚本。
+- 旧公共表使用 create_all 初始化；新剧本两表有独立增量建表检查，后续字段升级仍须编写对应迁移。
 - Agent 当前请求内执行，限制8轮；尚无后台任务队列、流式输出。长请求失败时已提交草稿仍可刷新查看。
 - PostgreSQL 配置已提供，实际验证环境和结果见 `docs/verification.md`。
 

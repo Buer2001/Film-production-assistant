@@ -93,8 +93,8 @@ def test_rejected_draft_cannot_be_confirmed_and_invalid_expense_rejected(client)
 
 def test_agent_tool_loop_creates_only_pending_draft(client):
     import asyncio
-    from backend.agent.runtime.runner import run
-    from backend.production.project.schemas import AgentInput
+    from backend.agent.runner import run
+    from backend.agent.schemas import AgentInput
 
     class FakeModel:
         def __init__(self): self.calls = 0

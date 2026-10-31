@@ -17,7 +17,8 @@ def main():
     with tempfile.TemporaryDirectory() as temp:
         report = Path(temp) / 'results.xml'
         process = subprocess.run([sys.executable, '-m', 'pytest', 'tests/test_analysis.py',
-            'tests/test_workflow.py', '-q', f'--junitxml={report}'], cwd=root)
+            'tests/test_workflow.py', 'tests/test_scripts_v1.py', 'tests/test_streaming.py',
+            'tests/test_draft_tools.py', 'tests/test_empty_placeholder.py', '-q', f'--junitxml={report}'], cwd=root)
         cases = []
         if report.exists():
             for case in ElementTree.parse(report).iter('testcase'):

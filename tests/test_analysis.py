@@ -2,10 +2,10 @@
 import asyncio
 import json
 import pytest
-from fastapi import HTTPException
+from backend.common.errors import BusinessError
 from fastapi.testclient import TestClient
 from backend.main import create_app
-from backend.production.analysis import extract_script
+from backend.ai.legacy_extractor import extract_script
 
 
 @pytest.fixture
@@ -43,7 +43,7 @@ def test_parse_preserves_evidence_and_normalizes_names():
     {'time': '夜'}, {'interior': '外'}, {'title': '不存在的标题'},
 ])
 def test_parse_rejects_unsupported_claims(patch):
-    with pytest.raises(HTTPException) as exc:
+    with pytest.raises(BusinessError) as exc:
         asyncio.run(extract_script(TEXT, Model([{**SCENE, **patch}])) )
     assert exc.value.status_code == 422
 
@@ -62,7 +62,7 @@ def save(c, p, ops):
 
 
 def test_parse_preview_draft_approval_and_stale_version(client, monkeypatch):
-    from backend.common.llm.client import ModelClient
+    from backend.ai.client import ModelClient
     monkeypatch.setattr(ModelClient, 'chat', Model([SCENE]).chat)
     p = create(client)
     preview = client.post(f'/api/projects/{p}/scripts/parse', json={
@@ -142,7 +142,7 @@ def test_parse_reports_missing_conditions_and_uncovered_text():
 
 
 def test_stale_parse_cannot_be_imported_and_unknown_resource_warns(client, monkeypatch):
-    from backend.common.llm.client import ModelClient
+    from backend.ai.client import ModelClient
     monkeypatch.setattr(ModelClient, 'chat', Model([SCENE]).chat)
     p = create(client)
     parsed = client.post(f'/api/projects/{p}/scripts/parse', json={'text': TEXT, 'base_revision': 0}).json()
@@ -155,7 +155,7 @@ def test_stale_parse_cannot_be_imported_and_unknown_resource_warns(client, monke
 
 def test_concurrent_parse_conversion_does_not_duplicate_drafts(client, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
-    from backend.common.llm.client import ModelClient
+    from backend.ai.client import ModelClient
     monkeypatch.setattr(ModelClient, 'chat', Model([SCENE]).chat)
     p = create(client)
     parsed = client.post(f'/api/projects/{p}/scripts/parse', json={'text': TEXT, 'base_revision': 0}).json()
@@ -173,8 +173,8 @@ def test_concurrent_parse_conversion_does_not_duplicate_drafts(client, monkeypat
         {'kind': 'task', 'data': {'title': '不应写入'}}]}),
 ])
 def test_agent_recovers_from_invalid_tools_without_writing(client, name, args):
-    from backend.agent.runtime.runner import run
-    from backend.production.project.schemas import AgentInput
+    from backend.agent.runner import run
+    from backend.agent.schemas import AgentInput
 
     class BadThenRecover:
         calls = 0
