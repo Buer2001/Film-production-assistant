@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api } from './api/client';
 import ScriptWorkspace from './features/scripts/ScriptWorkspace';
+import PlanningWorkspace from './features/planning/PlanningWorkspace';
 import useProductionWorkspace from './features/production/useProductionWorkspace';
 import { ProductionPages, ProductionAssistant, RecordEditor } from './features/production/ProductionPages';
 import { tabs } from './features/production/constants';
@@ -24,15 +25,15 @@ function App() {
       <form onSubmit={createProject}><input aria-label="新项目名称" placeholder="新项目名称" value={name} onChange={e => setName(e.target.value)} required maxLength={200}/><button disabled={busy || scriptBlocked}>创建项目</button></form>
       <small>单制片维护 · 正式修改需确认</small>
     </aside>
-    <main>{modelNotice && <div className="warning" role="status">模型未配置，Agent 与剧本解析不可用，其余功能正常；配置方法见 README。 <button type="button" onClick={() => setModelNotice(false)} aria-label="关闭模型配置提示">关闭</button></div>}<header><div><small>PRODUCTION WORKSPACE</small><h1>{tab}</h1><p>{state ? `${state.name} · 数据版本 ${state.revision}` : '创建项目，开始整理你的拍摄。'}</p></div><button disabled={busy || !pid} onClick={() => act(() => load())}>刷新数据</button></header>
+    <main>{modelNotice && <div className="warning" role="status">模型未配置，Agent 与剧本解析不可用，其余功能正常；配置方法见 README。 <button type="button" onClick={() => setModelNotice(false)} aria-label="关闭模型配置提示">关闭</button></div>}<header><div><small>PRODUCTION WORKSPACE</small><h1>{tab}</h1><p>{state ? `${state.name} · 数据版本 ${state.revision}` : '创建项目，开始整理你的拍摄。'}</p></div>{tab !== '项目日程' && <button disabled={busy || !pid} onClick={() => act(() => load())}>刷新数据</button>}</header>
       {error && <div role="alert" className="error">{error}<button onClick={() => setError('')}>关闭</button></div>}
       {busy && <p role="status">处理中，请稍候…</p>}
       {state && <>
         {tab === '剧本' && <ScriptWorkspace key={pid} pid={pid} onLockChange={setScriptBlocked}/>}
-        <ProductionPages workspace={workspace}/>
+        {tab === '项目日程' ? <PlanningWorkspace key={pid} pid={pid} onLockChange={setScriptBlocked}/> : <ProductionPages workspace={workspace}/>}
       </>}
     </main>
-    <ProductionAssistant workspace={workspace}/>
+    {tab !== '项目日程' && <ProductionAssistant workspace={workspace}/>}
     <RecordEditor workspace={workspace}/>
   </div>;
 }

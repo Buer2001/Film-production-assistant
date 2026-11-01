@@ -6,6 +6,8 @@ from backend.common.errors import BusinessError
 from backend.common.logging.config import configure_logging
 from backend.common.logging.middleware import RequestLoggingMiddleware, capture_http_error
 from backend.common.database.migrations.script_v1 import upgrade as upgrade_scripts
+from backend.common.database.migrations.planning_v2 import upgrade as upgrade_planning
+from backend.router.planning import router as planning_router
 from backend.router.script import router as script_router
 from backend.router.project import router as project_router
 from backend.router.change import router as change_router
@@ -16,7 +18,7 @@ from backend.router.impact import router as impact_router
 from backend.agent.router import router as agent_router
 from backend.router.health import router as health_router
 
-routers = (script_router, health_router, project_router, change_router, notice_router,
+routers = (planning_router, script_router, health_router, project_router, change_router, notice_router,
            event_router, legacy_script_router, impact_router, agent_router)
 
 
@@ -28,6 +30,7 @@ def create_app(database_url=None):
         engine, app.state.sessions = database(url)
         try:
             upgrade_scripts(engine)
+            upgrade_planning(engine)
             from backend.service.script.jobs import ParseJobs
             app.state.parse_jobs = ParseJobs(app.state.sessions)
             yield

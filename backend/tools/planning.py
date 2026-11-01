@@ -1,0 +1,72 @@
+"""无数据库/模型依赖的安排检查；返回可解释的提醒。"""
+from datetime import datetime, timedelta, timezone
+from backend.common.errors import BusinessError
+
+
+def today():
+    return datetime.now(timezone(timedelta(hours=8))).date()
+
+
+def check_tasks(tasks, settings):
+    index = {t['id']: t for t in tasks}
+    graph = {}
+    warnings = []
+    for task in tasks:
+        key, detail = task['id'], task['details']
+        deps = [d['task_id'] for d in detail['dependencies']]
+        if len(deps) != len(set(deps)):
+            raise BusinessError(422, '任务前置依赖重复')
+        graph[key] = deps
+        for dep in deps:
+            if dep not in index or dep == key:
+                raise BusinessError(422, '前置任务不存在、跨计划或引用自身')
+            before = index[dep]
+            if task['status'] not in ('cancelled', 'completed') and before['status'] == 'cancelled':
+                raise BusinessError(422, '仍被依赖的任务不能取消，请先调整依赖')
+            if task.get('planned_start') and before.get('planned_end') and task['planned_start'] < before['planned_end']:
+                warnings.append({'task_id': key, 'message': '开始日期早于前置任务的计划完成日期'})
+            if task.get('planned_end') and before.get('planned_end') and task['planned_end'] < before['planned_end']:
+                warnings.append({'task_id': key, 'message': '完成日期早于前置任务的计划完成日期'})
+        start, end = task.get('planned_start'), task.get('planned_end')
+        if task['status'] not in ('completed', 'cancelled'):
+            if end and end < today().isoformat():
+                warnings.append({'task_id': key, 'message': '已逾期或建议日期已经过去，请核对是否来得及'})
+            if not end:
+                warnings.append({'task_id': key, 'message': '完成日期待定'})
+        for c in detail['constraints']:
+            target = c.get('date')
+            if c['kind'] == 'relative_to_milestone':
+                anchor = settings.get(c['milestone'])
+                if not anchor:
+                    warnings.append({'task_id': key, 'message': '时间约束对应的项目节点日期未确定'})
+                if anchor:
+                    target = (datetime.fromisoformat(anchor).date() + timedelta(days=c['offset_days'])).isoformat()
+            actual = start if c['kind'] == 'start_on_or_after' else end
+            violated = actual and target and (actual < target if c['kind'] == 'start_on_or_after' else actual > target)
+            if violated:
+                warnings.append({'task_id': key, 'message': '安排违反时间约束' + ('（已确认硬期限）' if c['confirmation'] == 'confirmed' and c['strength'] == 'hard' else '（需核对）')})
+            if c['confirmation'] == 'pending':
+                warnings.append({'task_id': key, 'message': '时间约束尚未确认：' + (c['source'] or '请补充来源')})
+    visiting, done = set(), set()
+    def visit(key):
+        if key in visiting:
+            raise BusinessError(422, '任务依赖形成循环')
+        if key in done:
+            return
+        visiting.add(key)
+        for dep in graph[key]:
+            visit(dep)
+        visiting.remove(key); done.add(key)
+    for key in graph:
+        visit(key)
+    return warnings
+
+
+def check_coverage(result, checklist, task_ids):
+    required = {x['id'] for x in checklist}
+    actual = [x['check_id'] for x in result['coverage']]
+    if len(actual) != len(set(actual)) or set(actual) != required:
+        raise BusinessError(422, '模型检查框架覆盖不完整、重复或包含未知检查项')
+    for item in result['coverage']:
+        if not set(item['task_refs']) <= task_ids or (item['status'] == 'addressed' and not item['task_refs']):
+            raise BusinessError(422, '检查项缺少有效任务关联')
