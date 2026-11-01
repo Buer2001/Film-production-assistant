@@ -5,11 +5,12 @@ from backend.schemas.script import SceneData
 
 
 def is_empty_placeholder(row):
-    """只识别完全没有内容和提取依据的占位，零页数等显式值也算已填写。"""
+    """只识别完全没有内容和提取依据的占位。"""
     return (all(row.get(key) in (None, '', [], {}) for key in SceneData.model_fields)
             and not row.get('extracted_data')
             and not row.get('evidence', {}).get('text')
-            and not row.get('previous_scene_id'))
+            and not row.get('previous_scene_id')
+            and not any(row.get('custom_values', {}).values()))
 
 
 def field_claims(scene):
@@ -44,8 +45,6 @@ def locate(text, extraction):
                     'scene_number': scene.scene_number, 'scene_index': len(result) + 1,
                     'field_name': field, 'value_length': len(value)})
                 failures.append(f'第{scene.scene_number or len(result) + 1}场 {field}=「{value[:80]}」')
-        if scene.page_count is not None:
-            raise BusinessError(422, '页数需要人工填写，模型不能估算')
         evidence = {'text': raw, 'start': start, 'end': end,
                     'line_start': text.count('\n', 0, start) + 1,
                     'line_end': text.count('\n', 0, end - 1) + 1,
@@ -66,8 +65,6 @@ def missing(data):
     labels = {'scene_number': '场号', 'interior_exterior': '内外', 'atmosphere': '气氛',
               'location': '场景', 'summary': '内容'}
     issues = [f'{label}待补' for key, label in labels.items() if not data.get(key)]
-    if data.get('page_count') is None:
-        issues.append('页数待补')
     if any(c['category'] == '待确认' for c in data.get('cast', [])):
         issues.append('演员分类待确认')
     return issues

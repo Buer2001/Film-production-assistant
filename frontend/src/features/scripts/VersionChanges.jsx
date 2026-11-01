@@ -1,6 +1,6 @@
 import React from 'react';
 import { columns } from './BreakdownTable';
-const labels = Object.fromEntries(columns);
+const labels = { ...Object.fromEntries(columns), custom_values: '自定义字段' };
 
 export default function VersionChanges({ doc, disabled, onChange, onDeletedReview }) {
   if (!doc.previous_script_id) return null;
@@ -27,7 +27,7 @@ export default function VersionChanges({ doc, disabled, onChange, onDeletedRevie
         </select></label>
         {delta && <p>变化字段：{delta.fields.map(k => labels[k] || k).join('、')}</p>}
         {old && <div className="columns"><div><h3>上一版原文</h3><pre>{old.evidence.text}</pre>
-          <details><summary>上一版拆解和人工补充（可复制）</summary><pre>{JSON.stringify(Object.fromEntries(columns.map(([key, label]) => [label, old[key]])), null, 2)}</pre></details></div>
+          <details><summary>上一版拆解和人工补充（可复制）</summary><pre>{JSON.stringify({ ...Object.fromEntries(columns.map(([key, label]) => [label, old[key]])), ...Object.fromEntries((doc.custom_fields || []).map(f => [f.name, old.custom_values?.[f.id] || ''])) }, null, 2)}</pre></details></div>
           <div><h3>本版原文</h3><pre>{row.evidence.text}</pre></div></div>}
         {!old && <p>请在拆解表中核对本场信息。</p>}
         <label className="inline-check"><input type="checkbox" disabled={disabled || row.match_status === 'pending'}

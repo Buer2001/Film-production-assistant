@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import useScriptDraft from './useScriptDraft';
 import { scriptApi } from './api';
 import ScriptImport from './ScriptImport';
@@ -6,19 +6,23 @@ import BreakdownTable from './BreakdownTable';
 import EvidencePanel from './EvidencePanel';
 import ProgressPanel from './ProgressPanel';
 import VersionChanges from './VersionChanges';
+import CustomFields from './CustomFields';
 import './scripts.css';
 
 const blank = () => ({ id: crypto.randomUUID(), local_id: crypto.randomUUID(), scene_number: '', interior_exterior: '',
-  atmosphere: '', page_count: null, location: '', summary: '', cast: [], makeup_costume: [],
-  action_props: [], other_props: [], notes: '', previous_scene_id: null, match_status: 'first',
+  atmosphere: '', location: '', summary: '', cast: [], makeup_costume: [],
+  action_props: [], other_props: [], custom_values: {}, word_count: null, notes: '', previous_scene_id: null, match_status: 'first',
   parse_status: 'succeeded', resolution: 'manual', parse_error: '', change_reviewed: false, evidence: {}, extracted_data: {}, review_issues: [] });
 
 export default function ScriptWorkspace({ pid, onLockChange }) {
-  const { versions, setVersions, doc, selected, setSelected, importing, setImporting, busy, error, setError, saveState, acceptMissing, setAcceptMissing, dirty, install, mutate, updateScene, backupDraft, reloadSaved, run, switchVersion, parse, retrySave, connection, reconnect, retryScene } = useScriptDraft(pid, onLockChange);
+  const [customFields, setCustomFields] = useState([]), [fieldsDirty, setFieldsDirty] = useState(false);
+  const [fieldsBusy, setFieldsBusy] = useState(false), [draftLocked, setDraftLocked] = useState(false);
+  useEffect(() => { onLockChange?.(draftLocked || fieldsDirty || fieldsBusy); }, [draftLocked, fieldsDirty, fieldsBusy, onLockChange]);
+  const { versions, setVersions, doc, selected, setSelected, importing, setImporting, busy, error, setError, saveState, acceptMissing, setAcceptMissing, dirty, install, mutate, updateScene, backupDraft, reloadSaved, run, switchVersion, parse, retrySave, connection, reconnect, retryScene } = useScriptDraft(pid, setDraftLocked);
   const running = doc?.progress?.state === 'running' || doc?.status === 'parsing';
-  const locked = busy || doc?.read_only;
+  const locked = busy || fieldsBusy || doc?.read_only;
   const unresolved = doc?.scenes.some(s => ['pending', 'running', 'failed'].includes(s.parse_status) && !['manual', 'excluded'].includes(s.resolution));
-  const unsaved = dirty || saveState === '保存中';
+  const unsaved = dirty || fieldsDirty || saveState === '保存中';
   return <div className="script-workspace">
     <div className="script-toolbar">
       <label>剧本版本<select aria-label="剧本版本" disabled={busy || unsaved} value={doc?.id || ''}
@@ -34,6 +38,8 @@ export default function ScriptWorkspace({ pid, onLockChange }) {
         href={scriptApi.exportUrl(pid, doc.id)}>导出 Excel{doc.status !== 'confirmed' ? '（未确认）' : ''}</a>}
     </div>
     {error && <div className="error" role="alert">{error}</div>}
+    <CustomFields key={pid} pid={pid} disabled={busy || running || doc?.read_only || dirty || saveState === '保存中'}
+      onChange={setCustomFields} onDirtyChange={setFieldsDirty} onBusyChange={setFieldsBusy}/>
     {saveState === '保存失败' && <div className="script-toolbar">
       <button onClick={retrySave}>重试保存</button>
       <button onClick={backupDraft}>下载本地草稿备份</button>
@@ -61,7 +67,7 @@ export default function ScriptWorkspace({ pid, onLockChange }) {
         <details><summary>查看已保存原文</summary><pre>{doc.content}</pre></details>
       </section>}
       {doc.scenes.length > 0 && <>
-        <BreakdownTable scenes={doc.scenes} comparison={doc.comparison} disabled={locked}
+        <BreakdownTable scenes={doc.scenes} comparison={doc.comparison} disabled={locked} customFields={customFields}
           onRetry={retryScene} retryDisabled={busy || unsaved || running || doc.can_start_parse} structuralDisabled={running}
           selected={selected} onSelect={setSelected} onChange={updateScene}
           onAdd={() => mutate(d => ({ ...d, scenes: [...d.scenes, { ...blank(), match_status: d.previous_script_id ? 'pending' : 'first' }] }))}
@@ -74,7 +80,7 @@ export default function ScriptWorkspace({ pid, onLockChange }) {
           onDeletedReview={value => mutate(d => ({ ...d, deleted_reviewed: value }))}/>
         {!doc.read_only && <section>
           <label className="inline-check"><input type="checkbox" checked={acceptMissing} onChange={e => setAcceptMissing(e.target.checked)}/>
-            已核对并接受当前待补项（例如页数、缺失信息）</label>
+            已核对并接受当前缺失信息和待补项</label>
           <button disabled={locked || unsaved || running || unresolved || doc.status === 'confirmed'} onClick={() => run(async () => {
             const result = await scriptApi.confirm(pid, doc.id, { revision: doc.revision, accept_missing: acceptMissing });
             install(result); setVersions(await scriptApi.list(pid));

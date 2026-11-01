@@ -1,8 +1,9 @@
 from backend.common.dependencies import get_session
 from fastapi import APIRouter, Depends, Request, Query
 from fastapi.responses import Response, StreamingResponse
-from backend.schemas.script import ScriptInput, RevisionInput, SaveInput, ConfirmInput
+from backend.schemas.script import ScriptInput, RevisionInput, SaveInput, ConfirmInput, CustomFieldsInput
 from backend.service.script import version as script, breakdown
+from backend.service.script import fields
 
 router = APIRouter(prefix='/api/projects/{pid}/script-workspace', tags=['剧本拆解 V1'])
 
@@ -23,6 +24,16 @@ def versions(pid: str, request: Request, db=Depends(get_session)):
 def create(pid: str, payload: ScriptInput, request: Request, db=Depends(get_session)):
     row = script.create(db, pid, payload)
     return breakdown.detail(db, pid, row.id, request.app.state.parse_jobs.store)
+
+
+@router.get('/fields')
+def custom_fields(pid: str, db=Depends(get_session)):
+    return fields.get(db, pid)
+
+
+@router.put('/fields')
+def save_custom_fields(pid: str, payload: CustomFieldsInput, db=Depends(get_session)):
+    return fields.save(db, pid, payload)
 
 
 @router.get('/{sid}')

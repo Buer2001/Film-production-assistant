@@ -2,7 +2,7 @@ from copy import deepcopy
 from backend.tools.script.matching import suggest
 from backend.schemas.script import SceneData
 
-FIELDS = tuple(SceneData.model_fields)
+FIELDS = tuple(SceneData.model_fields) + ('custom_values',)
 
 
 def apply_previous(entries, previous):
@@ -14,7 +14,7 @@ def apply_previous(entries, previous):
             old = exact[0]
             # 仅原文完全一致才沿用人工修改；原始提取和证据保持可追溯。
             for key in FIELDS:
-                entry[key] = deepcopy(old[key])
+                entry[key] = deepcopy(old.get(key, {} if key == 'custom_values' else None))
             entry['evidence']['manual_fields'] = old['evidence'].get('manual_fields', [])
             entry.update(previous_scene_id=old['id'], match_status='matched', change_reviewed=False)
             used.add(old['id'])

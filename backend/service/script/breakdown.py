@@ -9,6 +9,8 @@ from backend.tools.script.evidence import missing, duplicate_warnings, is_empty_
 from backend.tools.script.draft_store import DraftStore
 from backend.schemas.script import SceneData
 from backend.service.script.jobs import advance
+from backend.tools.script.text import refresh_scene_metadata
+from backend.service.script import fields as custom_fields
 
 
 def header(row):
@@ -43,6 +45,8 @@ def detail(session, pid, sid, store=None, manager=None):
                          resolution='pending' if empty or entry.get('extracted_data') else 'manual')
             current.append(entry)
     previous = ([scenes.as_dict(r) for r in scenes.list_for_script(session, row.previous_script_id)] if row.previous_script_id else [])
+    for entry in current + previous:
+        refresh_scene_metadata(entry)
     doc = {**header(row), 'content': row.content, 'scenes': current, 'previous_scenes': previous,
            'review_issues': list(dict.fromkeys((draft.get('review_issues', []) if draft else row.review_issues) + duplicate_warnings([r for r in current if r.get('resolution') != 'excluded']))),
            'deleted_reviewed': draft['deleted_reviewed'] if draft else row.deleted_reviewed,
@@ -54,6 +58,7 @@ def detail(session, pid, sid, store=None, manager=None):
                               and all(is_empty_placeholder(entry) for entry in current))
     if draft:
         doc.update(status=draft['status'], revision=draft['revision'], confirmed_at=draft.get('confirmed_at'))
+    doc['custom_fields'] = custom_fields.get(session, pid)['fields']
     return doc
 
 
@@ -108,6 +113,9 @@ def save(session, pid, sid, request, store=None):
     initial = detail(session, pid, sid, store)
     scripts.lock_project(session, pid)
     script_service.require_editable(session, row)
+    field_ids = {field['id'] for field in custom_fields.get(session, pid)['fields']}
+    if any(set(item.custom_values) - field_ids for item in request.scenes):
+        raise BusinessError(422, '自定义字段不属于当前项目')
     previous = {r.id for r in scenes.list_for_script(session, row.previous_script_id)} if row.previous_script_id else set()
     def update(doc):
         doc = doc or initial
@@ -155,6 +163,7 @@ def save(session, pid, sid, request, store=None):
             if allowed & {'previous_scene_id', 'match_status', 'change_reviewed'}:
                 data['evidence']['match_manual'] = True
             data['review_issues'] = missing(data)
+            refresh_scene_metadata(data)
             entries.append(data)
         if running or masked:
             entries.extend(deepcopy(value) for key, value in current.items() if key not in ids)

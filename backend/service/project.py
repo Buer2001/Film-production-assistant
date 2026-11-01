@@ -26,7 +26,7 @@ def change_dict(c):
 
 def state(s, pid):
     p = get_project(s, pid)
-    records = [record_dict(r) for r in rows(s, Record, pid)]
+    records = [record_dict(r) for r in rows(s, Record, pid) if r.kind != 'script_fields']
     notices = [{'id': n.id, 'date': n.date, 'version': n.version, 'revision': n.revision,
                 'snapshot': n.snapshot, 'created_at': n.created_at, **notice_status(n, records)}
                for n in rows(s, Notice, pid)]

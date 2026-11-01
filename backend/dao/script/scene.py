@@ -1,8 +1,9 @@
 from sqlalchemy import select
 from backend.models.script import SceneBreakdown
+from backend.tools.script.text import scene_word_count
 
 SCALARS = ('scene_number', 'interior_exterior', 'atmosphere', 'location', 'summary', 'notes')
-MULTIPLE = ('page_count', 'cast', 'makeup_costume', 'action_props', 'other_props')
+MULTIPLE = ('cast', 'makeup_costume', 'action_props', 'other_props', 'custom_values')
 
 
 def list_for_script(session, sid):
@@ -11,7 +12,11 @@ def list_for_script(session, sid):
 
 
 def data(row):
-    return {**{key: getattr(row, key) for key in SCALARS}, **row.details}
+    raw = row.evidence.get('text', '')
+    return {**{key: getattr(row, key) for key in SCALARS},
+            **{key: value for key, value in row.details.items() if key != 'page_count'},
+            'word_count': scene_word_count(raw) if raw else None,
+            'custom_values': row.details.get('custom_values') or {}}
 
 
 def as_dict(row):
@@ -32,7 +37,9 @@ def replace(session, sid, entries):
         row = current[rid] if rid in current else SceneBreakdown(script_id=sid, **({"id": rid} if rid else {}))
         for key in SCALARS:
             setattr(row, key, entry.get(key, ''))
-        row.details = {key: entry.get(key) for key in MULTIPLE}
+        row.details = {key: (entry.get(key) or {}) if key == 'custom_values' else entry.get(key) for key in MULTIPLE}
+        raw = entry.get('evidence', {}).get('text', '')
+        row.details['word_count'] = scene_word_count(raw) if raw else None
         for key in ('previous_scene_id', 'match_status', 'change_reviewed', 'evidence', 'extracted_data', 'review_issues'):
             if key in entry:
                 setattr(row, key, entry[key])

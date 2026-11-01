@@ -1,6 +1,5 @@
-from decimal import Decimal
 from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class Strict(BaseModel):
@@ -26,7 +25,6 @@ class SceneData(Strict):
     scene_number: str = Field(default='', max_length=50)
     interior_exterior: str = Field(default='', max_length=30)
     atmosphere: str = Field(default='', max_length=50)
-    page_count: Decimal | None = Field(default=None, ge=0, max_digits=8, decimal_places=3)
     location: str = Field(default='', max_length=500)
     summary: str = Field(default='', max_length=5000)
     cast: list[Cast] = Field(default_factory=list, max_length=200)
@@ -45,6 +43,8 @@ class Extraction(Strict):
 
 
 class SceneEdit(SceneData):
+    custom_values: dict[str, str] = Field(default_factory=dict, max_length=50)
+    word_count: int | None = Field(default=None, ge=0)
     id: str | None = None
     previous_scene_id: str | None = None
     match_status: Literal['first', 'pending', 'matched', 'new'] = 'first'
@@ -56,6 +56,31 @@ class SceneEdit(SceneData):
     evidence: dict = Field(default_factory=dict)
     extracted_data: dict = Field(default_factory=dict)
     review_issues: list[str] = Field(default_factory=list)
+
+    @model_validator(mode='before')
+    @classmethod
+    def discard_legacy_page_count(cls, value):
+        # 兼容仍打开旧页面的保存请求，但不再输出或保存页数。
+        return {key: item for key, item in value.items() if key != 'page_count'} if isinstance(value, dict) else value
+
+    @field_validator('custom_values')
+    @classmethod
+    def bounded_custom_values(cls, value):
+        if any(len(key) > 36 or len(text) > 3000 for key, text in value.items()):
+            raise ValueError('自定义内容过长')
+        return value
+
+
+class CustomField(Strict):
+    id: str | None = Field(default=None, max_length=36)
+    name: str = Field(min_length=1, max_length=50)
+    description: str = Field(default='', max_length=300)
+    active: bool = True
+
+
+class CustomFieldsInput(Strict):
+    revision: int = Field(ge=0)
+    fields: list[CustomField] = Field(max_length=50)
 
 
 class ScriptInput(Strict):

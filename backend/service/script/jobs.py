@@ -6,9 +6,12 @@ from backend.tools.script.draft_store import DraftStore
 from backend.service.script.comparison import FIELDS, compare
 from backend.tools.script.evidence import missing, duplicate_warnings
 from backend.common.errors import BusinessError
+from backend.tools.script.text import refresh_scene_metadata
 
 
 def advance(doc, event='progress'):
+    for row in doc['scenes']:
+        refresh_scene_metadata(row)
     progress = doc['progress']
     progress['sequence'] += 1
     progress['completed'] = sum(r['parse_status'] == 'succeeded' for r in doc['scenes'])

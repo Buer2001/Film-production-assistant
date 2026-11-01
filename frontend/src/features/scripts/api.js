@@ -2,6 +2,8 @@ import { api } from '../../api/client';
 
 const root = pid => `/projects/${pid}/script-workspace`;
 export const scriptApi = {
+  fields: pid => api(`${root(pid)}/fields`),
+  saveFields: (pid, data) => api(`${root(pid)}/fields`, data, { method: 'PUT' }),
   list: pid => api(root(pid)),
   get: (pid, sid) => api(`${root(pid)}/${sid}`),
   create: (pid, data) => api(root(pid), data),

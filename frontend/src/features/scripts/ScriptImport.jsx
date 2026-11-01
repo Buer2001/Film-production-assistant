@@ -32,7 +32,7 @@ export default function ScriptImport({ previous, busy, onImport }) {
       </div>
       <label>读取 TXT 文件<input type="file" accept=".txt,text/plain" disabled={busy || reading} onChange={readFile}/></label>
       <label>剧本原文<textarea required maxLength={50000} rows={9} value={text} onChange={e => setText(e.target.value)}/></label>
-      <small>{text.length.toLocaleString()} / 50,000 字 · 页数暂由人工填写</small>
+      <small>{text.length.toLocaleString()} / 50,000 字符 · 拆解后自动统计各场正文字数</small>
       {error && <p role="alert" className="error">{error}</p>}
       <div><button disabled={busy || reading || !text.trim() || !title.trim()}>保存原文并拆解</button></div>
     </form>

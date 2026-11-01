@@ -4,7 +4,7 @@ from zipfile import ZipFile, ZIP_DEFLATED
 from xml.sax.saxutils import escape
 
 COLUMNS = [('scene_number', '场号'), ('interior_exterior', '内外'), ('atmosphere', '气氛'),
-           ('page_count', '页数'), ('location', '场景'), ('summary', '内容'),
+           ('word_count', '字数'), ('location', '场景'), ('summary', '内容'),
            ('cast', '角色'), ('makeup_costume', '妆造'), ('action_props', '戏用道具'),
            ('other_props', '其他道具'), ('notes', '备注')]
 
@@ -38,8 +38,17 @@ def export_workbook(doc):
     metadata = [doc['title'], f"剧本 V{doc['version_number']} {doc['version_label']}",
                 f"编辑版本 {doc['revision']}", '已确认' if doc['status'] == 'confirmed' else '未确认',
                 doc['confirmed_at'] or '']
-    rows = [metadata, [label for _, label in COLUMNS]]
-    rows += [[row.get(key) for key, _ in COLUMNS] for row in doc['scenes']]
+    fields = [field for field in doc.get('custom_fields', []) if field.get('active', True)]
+    rows = [metadata, [label for _, label in COLUMNS] + [field['name'] for field in fields]]
+    for row in doc['scenes']:
+        values = []
+        for key, _ in COLUMNS:
+            value = row.get(key)
+            if key in ('action_props', 'other_props'):
+                value = '、'.join(item['name'] for item in (value or []))
+            values.append(value)
+        values.extend(row.get('custom_values', {}).get(field['id'], '') for field in fields)
+        rows.append(values)
     changes = [['类型', '场号', '变化字段', '上一版', '本版']]
     for row in doc['comparison']['changed']:
         def changed_values(side):
@@ -49,6 +58,10 @@ def export_workbook(doc):
                     values[key] = row[side]['evidence'].get('text', '')
                 elif key == '顺序':
                     values[key] = row[side + '_order']
+                elif key in ('action_props', 'other_props'):
+                    values[key] = [item['name'] for item in (row[side].get(key) or [])]
+                elif key == 'custom_values':
+                    values[key] = {field['name']: row[side].get(key, {}).get(field['id'], '') for field in fields}
                 else:
                     values[key] = row[side].get(key)
             return json.dumps(values, ensure_ascii=False)

@@ -14,7 +14,7 @@ def seed(client, *, summary='', status='review'):
         script=session.get(Script,doc['id']); script.status=status; script.revision=3
         data=SceneData(summary=summary).model_dump(mode='json')
         row=SceneBreakdown(script_id=doc['id'],sort_order=0,summary=summary,
-            details={key:data[key] for key in ('page_count','cast','makeup_costume','action_props','other_props')},
+            details={key:data[key] for key in ('cast','makeup_costume','action_props','other_props')},
             evidence={'text':'','manual_fields':list(SceneData.model_fields)},extracted_data={})
         session.add(row); session.commit(); original=row.id
     return root,doc['id'],original
