@@ -16,6 +16,8 @@ export default function useProductionWorkspace(pid, tab, setTab) {
   async function act(fn) { setBusy(true); setError(''); try { await fn(); } catch (e) { setError(e.message); } finally { setBusy(false); } }
   useEffect(() => { api('/health').then(h => setModelNotice(h.agent_configured === false)).catch(e => setError(e.message)); }, []);
   useEffect(() => { setState(null); setChats([]); setSession(null); setEditing(null); setFilter(''); setImpact(null); setResourceQuery(''); if (pid) act(() => load(pid)); }, [pid]);
+  // 从日程返回概览时重读后端统计，不能沿用进入日程前的快照。
+  useEffect(() => { if (tab === '项目概览' && pid) act(() => load(pid)); }, [tab, pid]);
   useEffect(() => { if (tab === '变更记录' && pid) api(`/projects/${pid}/events`).then(setEvents).catch(e => setError(e.message)); }, [tab, pid, state?.revision]);
   async function saveRecord(e) {
     e.preventDefault();

@@ -82,7 +82,14 @@ export default function ScriptWorkspace({ pid, onLockChange }) {
           <label className="inline-check"><input type="checkbox" checked={acceptMissing} onChange={e => setAcceptMissing(e.target.checked)}/>
             已核对并接受当前缺失信息和待补项</label>
           <button disabled={locked || unsaved || running || unresolved || doc.status === 'confirmed'} onClick={() => run(async () => {
-            const result = await scriptApi.confirm(pid, doc.id, { revision: doc.revision, accept_missing: acceptMissing });
+            const kept = doc.scenes.filter(row => row.resolution !== 'excluded');
+            const unmatched = kept.filter(row => row.match_status === 'pending').length;
+            const unchecked = kept.filter(row => !row.change_reviewed).length;
+            const oldUnlinked = (doc.comparison.unlinked || []).length;
+            const acceptUnreviewed = Boolean(doc.previous_script_id && (unmatched || unchecked || oldUnlinked));
+            if (acceptUnreviewed && !window.confirm(`本版有 ${unmatched} 场待匹配、${unchecked} 场未逐场核对、${oldUnlinked} 场旧场次未确认去向。\n这些状态会保留，不会自动认定新增或删除。仍然确认本版？`)) return;
+            const result = await scriptApi.confirm(pid, doc.id, { revision: doc.revision,
+              accept_missing: acceptMissing, accept_unreviewed: acceptUnreviewed });
             install(result); setVersions(await scriptApi.list(pid));
           })}>确认本版拆解</button>
           {unresolved && <small>请处理未完成或失败场次后再确认。</small>}

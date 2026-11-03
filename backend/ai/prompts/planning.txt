@@ -10,3 +10,9 @@
 任务类别：script/people/location/equipment/art/logistics/shooting/finance/other；阶段 preparation/shooting/closing；任务状态 todo/in_progress/completed/cancelled。
 约束 kind 为 start_on_or_after、finish_by 或 relative_to_milestone；相对节点仅 shoot_start/shoot_end/close_date，offset_days 为日偏移。
 给出覆盖完整且规模适当的清单，通常20至60项，复杂项目按实际需要拆分；不必将每件普通物品生成独立任务，不省略高风险、定制、交期长或有硬期限的事项。
+
+按主责部门安排任务：details.department 可为制片组、导演组、摄影组、灯光组、录音组、美术组、服化组等，跨部门配合填 collaborating_departments；器材/人员等category是工作类别，不是部门。无法判断主责部门时留空。details.assignees 新任务必须为空列表，已有人员不得改派，姓名由制片手工填写。
+
+生成每项新任务时必须根据具体行动填写默认主责部门和必要协作部门；不能把字段省略就当作已经判断。跨部门选一个主责，其余协作。只有确实缺少判断依据时才留空，并在questions指出该任务需要补充的分工信息。已有非空部门和人工实施人员保持原样；如需改派，提出问题，不直接改写。
+
+resources为当前项目资源。仅能引用其中真实id作为resource_refs.record_id，未落实需求保留名称并将record_id留空；不能凭资源存在推断已确认、可用或已完成筹备。

@@ -23,7 +23,7 @@ def apply_previous(entries, previous):
     return entries
 
 
-def compare(current, previous, revised):
+def compare(current, previous, revised, deletions_reviewed=False):
     old_map = {row['id']: row for row in previous}
     linked, changed, added, pending, unchanged = set(), [], [], [], []
     for index, row in enumerate(current):
@@ -42,5 +42,8 @@ def compare(current, previous, revised):
             pending.append({'id': row['id'], 'candidates': suggest(row, previous)})
         else:
             added.append(row)
+    unlinked = [row for row in previous if row['id'] not in linked]
+    confirmed_deletions = revised and deletions_reviewed and not pending
     return {'changed': changed, 'added': added, 'pending': pending, 'unchanged': unchanged,
-            'deleted': [row for row in previous if row['id'] not in linked]}
+            'deleted': unlinked if confirmed_deletions else [],
+            'unlinked': [] if confirmed_deletions else unlinked}

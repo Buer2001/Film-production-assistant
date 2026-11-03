@@ -81,6 +81,59 @@ def test_changed_scene_requires_manual_match_and_review(client):
     assert client.post(f"{root}/{new['id']}/confirm", json={"revision": new["revision"], "accept_missing": True}).status_code == 200
     assert "action_props" in new["comparison"]["changed"][0]["fields"]
 
+
+def test_revision_can_be_confirmed_with_batch_acknowledgement(client):
+    from io import BytesIO
+    from zipfile import ZipFile
+    root, old = setup(client)
+    root, new = setup(client, old, '1 内 日 车内\n晚来拿着手机。')
+    response = client.post(f"{root}/{new['id']}/confirm", json={
+        'revision': new['revision'], 'accept_missing': True, 'accept_unreviewed': True})
+    assert response.status_code == 200, response.text
+    confirmed = response.json()
+    assert confirmed['scenes'][0]['match_status'] == 'pending'
+    assert confirmed['scenes'][0]['previous_scene_id'] is None
+    assert confirmed['scenes'][0]['change_reviewed'] is False
+    assert confirmed['deleted_reviewed'] is False
+    assert confirmed['comparison']['added'] == []
+    assert confirmed['comparison']['deleted'] == []
+    assert len(confirmed['comparison']['unlinked']) == 1
+    exported = client.get(f"{root}/{new['id']}/export")
+    with ZipFile(BytesIO(exported.content)) as z:
+        xml = z.read('xl/worksheets/sheet2.xml').decode()
+    assert '待匹配' in xml and '未关联旧场次' in xml
+    assert '>删除<' not in xml and '>新增<' not in xml
+    store = client.app.state.parse_jobs.store
+    store.delete(confirmed['project_id'], confirmed['id'])
+    restored = client.get(f"{root}/{new['id']}").json()
+    assert restored['scenes'][0]['match_status'] == 'pending'
+    assert restored['scenes'][0]['change_reviewed'] is False
+    assert restored['comparison']['deleted'] == []
+
+
+def test_matched_unchanged_scene_does_not_require_individual_check(client):
+    root, old = setup(client)
+    root, new = setup(client, old)
+    assert new['scenes'][0]['match_status'] == 'matched'
+    assert new['scenes'][0]['change_reviewed'] is False
+    response = client.post(f"{root}/{new['id']}/confirm", json={
+        'revision': new['revision'], 'accept_missing': True, 'accept_unreviewed': True})
+    assert response.status_code == 200, response.text
+    assert response.json()['scenes'][0]['change_reviewed'] is False
+
+
+def test_only_reviewed_unlinked_scenes_are_classified_as_deleted(client):
+    root, old = setup(client)
+    root, new = setup(client, old, '1 内 日 车内\n晚来拿着手机。')
+    row = dict(new['scenes'][0], match_status='new', previous_scene_id=None, change_reviewed=False)
+    saved = client.put(f"{root}/{new['id']}", json={'revision': new['revision'], 'scenes': [row]}).json()
+    assert saved['comparison']['deleted'] == []
+    assert len(saved['comparison']['unlinked']) == 1
+    saved = client.put(f"{root}/{new['id']}", json={
+        'revision': saved['revision'], 'scenes': saved['scenes'], 'deleted_reviewed': True}).json()
+    assert len(saved['comparison']['deleted']) == 1
+    assert saved['comparison']['unlinked'] == []
+
 def test_project_isolation_and_evidence_failure(client, monkeypatch):
     root, doc = setup(client)
     other = client.post("/api/projects", json={"name": "其他"}).json()["id"]
@@ -186,6 +239,6 @@ def test_deletion_needs_explicit_review(client):
     row.update(match_status='new', previous_scene_id=None, change_reviewed=True)
     saved = client.put(f"{root}/{new['id']}", json={'revision': new['revision'], 'scenes': [row]}).json()
     rejected = client.post(f"{root}/{new['id']}/confirm", json={'revision': saved['revision'], 'accept_missing': True})
-    assert rejected.status_code == 422 and '删除' in rejected.json()['detail']
+    assert rejected.status_code == 422 and '直接确认本版' in rejected.json()['detail']
     saved = client.put(f"{root}/{new['id']}", json={'revision': saved['revision'], 'scenes': saved['scenes'], 'deleted_reviewed': True}).json()
     assert client.post(f"{root}/{new['id']}/confirm", json={'revision': saved['revision'], 'accept_missing': True}).status_code == 200

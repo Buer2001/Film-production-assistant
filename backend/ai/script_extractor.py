@@ -1,5 +1,6 @@
 from backend.ai.prompt_loader import load_prompt
 from backend.common.errors import BusinessError
+from backend.common.logging.validation import validation_paths
 from backend.common.logging.config import logger
 from pydantic import ValidationError
 from backend.ai.client import ModelClient
@@ -7,32 +8,6 @@ from backend.schemas.script import Extraction
 from backend.tools.script.evidence import locate
 
 
-def validation_paths(errors: list[dict], limit: int = 6) -> list[str]:
-    if limit <= 0:
-        return []
-    paths = []
-    seen = set()
-    for error in errors:
-        loc = error['loc']
-        current_path = ''
-        for part in loc:
-            if isinstance(part, int):
-                current_path += f'[{part}]'
-            else:
-                if not part.isidentifier():
-                    part = 'field'
-                if current_path == '':
-                    current_path += part
-                else:
-                    current_path += f'.{part}'
-        if not current_path:
-            current_path = 'response'
-        if current_path not in seen:
-            seen.add(current_path)
-            paths.append(current_path)
-            if len(paths) >= limit:
-                break
-    return paths
 
 
 def reject(reason, message, scene_number='', paths=None, error_count=1):

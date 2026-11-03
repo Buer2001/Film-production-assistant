@@ -110,3 +110,4 @@ class SaveInput(RevisionInput):
 
 class ConfirmInput(RevisionInput):
     accept_missing: bool = False
+    accept_unreviewed: bool = False

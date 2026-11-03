@@ -18,7 +18,7 @@ def advance(doc, event='progress'):
     progress['failed'] = sum(r['parse_status'] == 'failed' for r in doc['scenes'])
     progress['total'] = len(doc['scenes'])
     kept = [row for row in doc['scenes'] if row.get('resolution') != 'excluded']
-    doc['comparison'] = compare(kept, doc.get('previous_scenes', []), bool(doc.get('previous_script_id')))
+    doc['comparison'] = compare(kept, doc.get('previous_scenes', []), bool(doc.get('previous_script_id')), doc.get('deleted_reviewed', False))
     base_warnings = [warning for warning in doc.get('review_issues', []) if not warning.startswith('重复场号：')]
     doc['review_issues'] = list(dict.fromkeys(base_warnings + duplicate_warnings(kept)))
     doc['_event'] = event

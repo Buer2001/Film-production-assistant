@@ -18,7 +18,7 @@ def race(tmp_path):
         for title in ['草稿甲', '草稿乙']:
             response = client.post(f'/api/projects/{pid}/changes', json={
                 'base_revision': 0, 'reason': title, 'operations': [
-                    {'kind': 'task', 'data': {'title': title}}]})
+                    {'kind': 'resource', 'data': {'title': title}}]})
             assert response.status_code == 200
             drafts.append(response.json()['id'])
         yield client, pid, drafts

@@ -1,17 +1,27 @@
-import React, { useState } from 'react';
-import { categories, phases, statuses, emptyTask } from './api';
+import React, { useId, useState } from 'react';
+import { resourceRefs } from './resourceRefs';
+import { categories, phases, statuses, emptyTask, departments } from './api';
 
-export default function TaskEditor({ initial, tasks, scenes, busy, onSave, onCancel, draft = false, isNew = false }) {
+export default function TaskEditor({ initial, tasks, scenes, resources = [], busy, onSave, onCancel, draft = false, isNew = false }) {
   const [value, setValue] = useState(() => structuredClone(initial || emptyTask()));
   const detail = value.details || emptyTask().details;
-  const [resourceText, setResourceText] = useState(() => (detail.resource_refs || []).map(r => r.name).join('\n'));
+  const [resourceText, setResourceText] = useState(() => (detail.resource_refs || []).filter(r => !r.record_id).map(r => r.name).join('\n'));
+  const [resourceIds, setResourceIds] = useState(() => (detail.resource_refs || []).filter(r => r.record_id).map(r => r.record_id));
+  const resourceOptions = [...resources, ...(detail.resource_refs || []).filter(r => r.record_id && !resources.some(x => x.id === r.record_id)).map(r => ({ id: r.record_id, data: { title: r.name + '（资源不可用，请核对）' } }))];
   const field = (key, v) => setValue(x => ({ ...x, [key]: v }));
   const details = (key, v) => field('details', { ...detail, [key]: v });
   const selected = e => [...e.target.selectedOptions].map(o => o.value);
+  const departmentList = useId();
+  const [assigneeText, setAssigneeText] = useState(() => (detail.assignees || []).join('、'));
+  const [collaboratorText, setCollaboratorText] = useState(() => (detail.collaborating_departments || []).join('、'));
+  const names = text => [...new Set(text.split(/[、,，;；\n]+/).map(x => x.trim()).filter(Boolean))];
   const constraints = detail.constraints || [];
   const updateConstraint = (i, patch) => details('constraints', constraints.map((c, n) => n === i ? { ...c, ...patch } : c));
-  return <div className="plan-editor"><h3>{initial?.id ? '编辑任务安排' : '任务安排'}</h3><form onSubmit={e => { e.preventDefault(); onSave({ ...value, details: { ...detail, resource_refs: resourceText.split('\n').map(x => x.trim()).filter(Boolean).map(name => (detail.resource_refs || []).find(r => r.name === name) || { type: 'other', name, record_id: null }) } }); }}><fieldset disabled={busy}>
+  return <div className="plan-editor"><h3>{initial?.id ? '编辑任务安排' : '任务安排'}</h3><form onSubmit={e => { e.preventDefault(); onSave({ ...value, details: { ...detail, assignees: names(assigneeText), collaborating_departments: names(collaboratorText), resource_refs: resourceRefs(resourceIds, resourceText, resources, detail.resource_refs || []) } }); }}><fieldset disabled={busy}>
     <label>任务名称<input autoFocus required maxLength={200} value={value.title} onChange={e => field('title', e.target.value)}/></label>
+    <div className="plan-grid"><label>主责部门<input list={departmentList} maxLength={50} value={detail.department || ''} placeholder="待分配，可自定义" onChange={e => details('department', e.target.value)}/><datalist id={departmentList}>{departments.map(name => <option value={name} key={name}/>)}</datalist></label>
+    <label>协作部门<input maxLength={400} value={collaboratorText} placeholder="多个部门用顿号分隔" onChange={e => setCollaboratorText(e.target.value)}/></label>
+    <label>计划实施人员<input maxLength={1000} value={assigneeText} placeholder="待分配，多个姓名用顿号分隔" onChange={e => setAssigneeText(e.target.value)}/></label></div>
     <div className="plan-grid"><label>阶段<select value={value.phase} onChange={e => field('phase', e.target.value)}>{Object.entries(phases).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
     <label>类别<select value={value.category} onChange={e => field('category', e.target.value)}>{Object.entries(categories).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
     <label>状态<select value={value.status} onChange={e => field('status', e.target.value)}>{Object.entries(statuses).filter(([k]) => !draft || !isNew || k === 'todo').map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label></div>
@@ -24,7 +34,8 @@ export default function TaskEditor({ initial, tasks, scenes, busy, onSave, onCan
       <p className="plan-muted">多选框可使用 Ctrl / Command 选择多项。</p>
       <label>前置任务<select multiple size={Math.min(5, Math.max(2, tasks.length))} value={(detail.dependencies || []).map(d => d.task_id)} onChange={e => details('dependencies', selected(e).map(task_id => ({ task_id, relation: 'finish_to_start' })))}>{tasks.filter(t => t.id !== initial?.id && t.status !== 'cancelled').map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select></label>
       <label>关联场次<select multiple size={4} value={(detail.scene_refs || []).map(s => `${s.script_id}:${s.scene_id}`)} onChange={e => { const keys = selected(e); details('scene_refs', scenes.filter(s => keys.includes(`${s.script_id}:${s.scene_id}`))); }}>{scenes.map(s => <option key={`${s.script_id}:${s.scene_id}`} value={`${s.script_id}:${s.scene_id}`}>{s.scene_number} · {s.location}</option>)}</select></label>
-      <label>相关资源（每行一个名称）<textarea value={resourceText} onChange={e => setResourceText(e.target.value)}/></label>
+      <label>关联项目资源<select multiple size={4} value={resourceIds} onChange={e => setResourceIds(selected(e))}>{resourceOptions.map(r => <option key={r.id} value={r.id}>{r.data.title}</option>)}</select></label>
+      <label>未落实资源需求（每行一个名称）<textarea value={resourceText} onChange={e => setResourceText(e.target.value)}/></label>
       <label>安排理由<textarea maxLength={2000} value={detail.rationale || ''} onChange={e => details('rationale', e.target.value)}/></label>
       <h4>外部期限和节点要求</h4>{constraints.map((c, i) => <div className="plan-constraint" key={i}>
         <label>约束类型<select value={c.kind} onChange={e => updateConstraint(i, { kind: e.target.value, date: e.target.value === 'relative_to_milestone' ? null : c.date, milestone: e.target.value === 'relative_to_milestone' ? 'shoot_start' : null })}><option value="finish_by">最迟完成</option><option value="start_on_or_after">最早开始</option><option value="relative_to_milestone">相对项目节点完成</option></select></label>

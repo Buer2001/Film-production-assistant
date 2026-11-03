@@ -17,8 +17,9 @@ from backend.router.legacy_script import router as legacy_script_router
 from backend.router.impact import router as impact_router
 from backend.agent.router import router as agent_router
 from backend.router.health import router as health_router
+from backend.router.resource import router as resource_router
 
-routers = (planning_router, script_router, health_router, project_router, change_router, notice_router,
+routers = (resource_router, planning_router, script_router, health_router, project_router, change_router, notice_router,
            event_router, legacy_script_router, impact_router, agent_router)
 
 

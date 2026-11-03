@@ -20,7 +20,7 @@ def propose(c, pid, revision, operations):
 
 def test_confirmation_is_idempotent_and_old_changes_conflict(client):
     p = project(client)
-    op = {'kind': 'task', 'data': {'title': '联系礼堂', 'category': '场地'}}
+    op = {'kind': 'resource', 'data': {'title': '联系礼堂', 'category': '场地'}}
     a = propose(client, p, 0, [op]).json()
     b = propose(client, p, 0, [op]).json()
     assert client.get(f'/api/projects/{p}').json()['records'] == []
@@ -33,11 +33,11 @@ def test_confirmation_is_idempotent_and_old_changes_conflict(client):
 def test_failed_batch_is_atomic_and_project_scoped(client):
     p, other = project(client), project(client)
     draft = propose(client, p, 0, [
-        {'kind': 'task', 'data': {'title': '不应该保存'}},
-        {'kind': 'task', 'id': 'missing', 'data': {'title': '错误'}}])
+        {'kind': 'resource', 'data': {'title': '不应该保存'}},
+        {'kind': 'resource', 'id': 'missing', 'data': {'title': '错误'}}])
     assert draft.status_code == 422
     assert client.get(f'/api/projects/{p}').json()['records'] == []
-    good = propose(client, p, 0, [{'kind': 'task', 'data': {'title': '任务'}}]).json()
+    good = propose(client, p, 0, [{'kind': 'resource', 'data': {'title': '任务'}}]).json()
     assert client.post(f'/api/projects/{other}/changes/{good["id"]}/confirm').status_code == 404
 
 
@@ -82,7 +82,7 @@ def test_rejected_draft_cannot_be_confirmed_and_invalid_expense_rejected(client)
     p = project(client)
     invalid = propose(client, p, 0, [{'kind': 'expense', 'data': {'title': '机票', 'category': '交通', 'amount': '100'}}])
     assert invalid.status_code == 422
-    draft = propose(client, p, 0, [{'kind': 'task', 'data': {'title': '取消任务'}}]).json()
+    draft = propose(client, p, 0, [{'kind': 'resource', 'data': {'title': '取消任务'}}]).json()
     rejected = client.post(f'/api/projects/{p}/changes/{draft["id"]}/reject')
     assert rejected.status_code == 200
     assert rejected.json() == {'status': 'rejected'}
@@ -106,7 +106,7 @@ def test_agent_tool_loop_creates_only_pending_draft(client):
                 return {'role': 'assistant', 'content': None, 'tool_calls': [{
                     'id': 'call_1', 'type': 'function', 'function': {'name': 'propose_change',
                     'arguments': json.dumps({'base_revision': 0, 'reason': '沟通整理', 'operations': [
-                        {'kind': 'task', 'data': {'title': '联系演员', 'source': '测试沟通'}}]})}}]}
+                        {'kind': 'resource', 'data': {'title': '联系演员', 'source': '测试沟通'}}]})}}]}
             assert messages[-1]['role'] == 'tool'
             return {'role': 'assistant', 'content': '已生成草稿，请确认。'}
 

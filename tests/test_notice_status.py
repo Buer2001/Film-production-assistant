@@ -21,12 +21,19 @@ def day(tmp_path):
 
 
 def apply(client, pid, operations):
-    revision = client.get(f'/api/projects/{pid}').json()['revision']
-    draft = client.post(f'/api/projects/{pid}/changes', json={
-        'base_revision': revision, 'reason': '测试调整', 'operations': operations})
-    assert draft.status_code == 200, draft.text
-    response = client.post(f'/api/projects/{pid}/changes/{draft.json()["id"]}/confirm')
-    assert response.status_code == 200, response.text
+    # 旧task写入已经关闭；这里直接模拟升级前的历史数据及历史变更，
+    # 专门验证旧通告快照仍可读取比较，不能借测试重新开放旧任务接口。
+    from backend.models.project import Project
+    from backend.schemas.record import Item
+    from backend.dao.record import apply_operation
+    with client.app.state.sessions() as session:
+        for operation in operations:
+            value = {**operation}
+            if not value.get('delete'):
+                value['data'] = Item.model_validate(value['data']).model_dump(mode='json')
+            apply_operation(session, pid, value)
+        session.get(Project, pid).revision += 1
+        session.commit()
 
 
 def status(day):

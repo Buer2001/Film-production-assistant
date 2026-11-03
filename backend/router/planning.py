@@ -1,7 +1,7 @@
 """项目日程接口；业务、事务及模型调用交给 Service。"""
 from fastapi import APIRouter, Depends, Request
 from backend.common.dependencies import get_session
-from backend.schemas.planning import SettingsInput, TaskInput, PatchInput, GenerateInput, DraftInput, ConfirmInput
+from backend.schemas.planning import SettingsInput, TaskInput, PatchInput, GenerateInput, DraftInput, ConfirmInput, Revision
 from backend.service import planning
 
 router = APIRouter(prefix='/api/projects/{pid}/planning', tags=['项目日程 V2'])
@@ -50,3 +50,8 @@ def discard(pid: str, request: ConfirmInput, session=Depends(get_session)):
 @router.get('/tasks/{task_id}/evidence')
 def evidence(pid: str, task_id: str, script_id: str, scene_id: str, session=Depends(get_session)):
     return planning.task_evidence(session, pid, task_id, script_id, scene_id)
+
+
+@router.post('/departments')
+async def departments(pid: str, body: Revision, request: Request):
+    return await planning.suggest_departments(request.app.state.sessions, pid, body)

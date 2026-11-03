@@ -35,6 +35,8 @@ async def run(s, pid, request, model=None):
             try:
                 output = execute(s, pid, fn['name'], json.loads(fn['arguments']))
             except (ValueError, BusinessError) as exc:
+                # 工具失败后先释放事务和项目锁，不能持锁等待下一轮模型响应。
+                s.rollback()
                 output = {'error': str(getattr(exc, 'detail', exc))}
             trace.append({'tool': fn['name'], 'result': output})
             messages.append({'role': 'tool', 'tool_call_id': call['id'],

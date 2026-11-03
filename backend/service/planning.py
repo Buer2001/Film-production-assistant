@@ -4,12 +4,15 @@ from datetime import date
 from pydantic import ValidationError
 from backend.common.database.base import uid, now
 from backend.common.errors import BusinessError
+from backend.common.logging.config import logger
+from backend.common.logging.validation import validation_diagnostics, diagnostic_summary
 from backend.dao import planning as dao, project as projects
 from backend.dao.script import version as versions, scene as scenes
 from backend.dao.event import add_event
 from backend.schemas.planning import Settings, TaskData, PlanResult
 from backend.tools.planning import check_tasks, check_coverage, today
 from backend.ai import planning as ai
+from backend.dao import resource as resources
 
 MAX_TASKS = 500  # ponytail: 单制片小项目整计划校验，规模扩大后改分页和任务级并发。
 
@@ -18,7 +21,9 @@ def validate(schema, data):
     try:
         return schema.model_validate(data)
     except ValidationError as exc:
-        raise BusinessError(422, '任务或日程字段不合法，请检查必填内容、日期和约束') from exc
+        diagnostics = validation_diagnostics(exc, schema)
+        logger.warning('planning.validation_failed', extra={'operation': 'planning.validate', 'error_type': 'schema_invalid', **diagnostics})
+        raise BusinessError(422, '任务或日程字段不合法：' + diagnostic_summary(diagnostics)) from exc
 
 
 def require_project(session, pid):
@@ -65,7 +70,8 @@ def read(session, pid):
     draft = row.draft if row else None
     return {'id': row.id if row else None, 'revision': row.revision if row else 0, 'settings': settings,
             'tasks': tasks, 'draft': draft, 'warnings': warnings, 'source': current_source,
-            'scene_options': options, 'checklist': ai.checklist(),
+            'scene_options': options, 'resource_revision': projects.get_project(session, pid).revision,
+            'resource_options': [{'id': r.id, 'data': r.data} for r in resources.list_resources(session, pid)], 'checklist': ai.checklist(),
             'draft_stale': bool(draft and draft['status'] == 'pending' and (draft['base_revision'] != row.revision or draft['source'] != current_source))}
 
 
@@ -160,6 +166,13 @@ def apply_result(session, pid, current, result, settings, *, model=False, genera
             if model and data['status'] not in ('todo', 'in_progress', 'cancelled'):
                 raise BusinessError(422, '模型不得代替制片标记完成')
         if model:
+            # 部门可由模型建议，实施人员只由制片填写；不编造或改派姓名。
+            previous_details = current.get(key, {}).get('details', {})
+            data['details']['assignees'] = list(previous_details.get('assignees', []))
+            if previous_details.get('department'):
+                data['details']['department'] = previous_details['department']
+            if previous_details.get('collaborating_departments'):
+                data['details']['collaborating_departments'] = list(previous_details['collaborating_departments'])
             old_constraints = current.get(key, {}).get('details', {}).get('constraints', [])
             confirmed = [c for c in old_constraints if c['confirmation'] == 'confirmed']
             if any(c not in data['details']['constraints'] for c in confirmed):
@@ -199,9 +212,11 @@ async def generate(sessions, pid, request, model=None):
                 breakdown.append({'id': scene.id, 'scene_number': scene.scene_number, 'location': scene.location,
                                   **{k: data.get(k) for k in ('summary', 'cast', 'makeup_costume', 'action_props', 'other_props')}})
         snapshot = {'today': today().isoformat(), 'settings': snap['settings'], 'source': source,
-                    'tasks': snap['tasks'], 'breakdown': breakdown}
+                    'tasks': snap['tasks'], 'breakdown': breakdown,
+                    'resources': snap['resource_options']}
         # 显式结束事务和连接作用域，模型等待期间不持锁。
-    result = await ai.generate(snapshot, request.instruction, model)
+    result = await ai.generate(snapshot, request.instruction, model, context={
+        'project_id': pid, 'revision': request.revision, 'script_id': source['script_id'] if source else None})
     with sessions() as session:
         try:
             row = lock(session, pid, request.revision)
@@ -303,3 +318,104 @@ def task_evidence(session, pid, task_id, script_id, scene_id):
             'script': {'id': script.id, 'title': script.title, 'version_number': script.version_number,
                        'version_label': script.version_label},
             'scene': scenes.as_dict(scene), 'content': script.content}
+
+
+def department_targets(snapshot):
+    """有待审草稿时只补该草稿；已分配、完成和取消的任务不再交给模型。"""
+    current = {t['id']: t for t in snapshot['tasks']}
+    draft = snapshot['draft']
+    if draft and draft['status'] == 'pending':
+        if snapshot['draft_stale']:
+            raise BusinessError(409, '待确认草稿依据已变化，请先重新核对；没有替换原草稿')
+        candidates = {}
+        for op in draft['result']['operations']:
+            key = op['ref']
+            if op['action'] == 'cancel':
+                continue
+            if op['action'] == 'add':
+                value = validate(TaskData, op['task']).model_dump(mode='json')
+            else:
+                if key not in current:
+                    raise BusinessError(409, '草稿关联任务已变化，请重新核对')
+                if current[key]['details'].get('department'):
+                    continue
+                value = merged_task(current[key], op['changes'])
+            candidates[key] = value
+    else:
+        candidates = current
+    return {key: value for key, value in candidates.items()
+            if not value['details'].get('department', '').strip() and value['status'] in ('todo', 'in_progress')}
+
+
+async def suggest_departments(sessions, pid, request, model=None):
+    with sessions() as session:
+        snapshot = read(session, pid)
+        if snapshot['revision'] != request.revision:
+            raise BusinessError(409, '日程版本已变化，请刷新后补全部门')
+        targets = department_targets(snapshot)
+        if not targets:
+            raise BusinessError(422, '当前没有需要补全部门的未完成任务')
+        remaining_count = max(0, len(targets) - 300)
+        targets = dict(list(targets.items())[:300])
+        payload = [{'ref': key, 'title': t['title'], 'description': t['description'], 'phase': t['phase'],
+                    'category': t['category'], 'resource_refs': t['details']['resource_refs'],
+                    'scene_refs': t['details']['scene_refs'],
+                    'collaborating_departments': t['details'].get('collaborating_departments', [])}
+                   for key, t in targets.items()]
+        source = snapshot['source']
+        pending = snapshot['draft'] if snapshot['draft'] and snapshot['draft']['status'] == 'pending' else None
+    suggestions = await ai.departments(payload, model, context={'project_id': pid, 'revision': request.revision,
+        'script_id': source['script_id'] if source else None})
+    refs = [item['ref'] for item in suggestions['assignments']]
+    if len(refs) != len(set(refs)) or set(refs) != set(targets):
+        raise BusinessError(422, '部门建议的任务编号遗漏、重复或越界；原任务及草稿保留')
+    with sessions() as session:
+        try:
+            row = lock(session, pid, request.revision)
+            if source_data(session, pid, current=True) != source:
+                raise BusinessError(409, '补全部门期间剧本依据已变化，请重新核对')
+            draft = deepcopy(pending) if pending else {'id': uid(), 'status': 'pending', 'source': source,
+                'created_at': now(), 'kind': 'departments', 'result': {'operations': [], 'questions': [],
+                'coverage': [{'check_id': item['id'], 'status': 'unknown', 'reason': '本次仅补全部门，未重新检查日程', 'task_refs': []}
+                             for item in ai.checklist()]}}
+            result = draft['result']
+            operation_index = {op['ref']: op for op in result['operations']}
+            assigned = 0
+            uncertain = []
+            for item in suggestions['assignments']:
+                key = item['ref']
+                if not item['department']:
+                    uncertain.append(item)
+                    continue
+                detail = {'department': item['department']}
+                # 人工已填协作部门保持不变；模型只补空白字段。
+                if not targets[key]['details'].get('collaborating_departments'):
+                    detail['collaborating_departments'] = list(dict.fromkeys(d for d in item['collaborating_departments'] if d != item['department']))
+                if key in operation_index:
+                    op = operation_index[key]
+                    if op['action'] == 'add':
+                        op['task'].setdefault('details', {}).update(detail)
+                    else:
+                        op['changes'].setdefault('details', {}).update(detail)
+                else:
+                    result['operations'].append({'action': 'update', 'ref': key, 'task': None, 'changes': {'details': detail}})
+                assigned += 1
+            if uncertain:
+                question = f'有{len(uncertain)}项任务的主责部门需要确认，请查看部门判断明细或人工补填。'
+                if question not in result['questions'] and len(result['questions']) < 50:
+                    result['questions'].append(question)
+            # 复用完整安排校验，但不让规范化过程扩写原有局部变更字段。
+            validate(PlanResult, result)
+            current = {t.id: task_data(t) for t in dao.tasks(session, row.id, current=True)}
+            _, warnings = apply_result(session, pid, current, deepcopy(result), settings_data(row), generation_id=draft['id'])
+            draft.update(base_revision=row.revision, warnings=warnings, updated_at=now(),
+                         department_assignment={'target_count': len(targets), 'assigned_count': assigned, 'remaining_count': remaining_count,
+                                                'suggestions': suggestions['assignments']})
+            row.draft = draft
+            add_event(session, pid, 'planning_departments', {'draft_id': draft['id'], 'revision': row.revision,
+                      'target_count': len(targets), 'assigned_count': assigned})
+            session.commit()
+            return read(session, pid)
+        except Exception:
+            session.rollback()
+            raise

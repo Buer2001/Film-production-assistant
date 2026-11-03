@@ -10,7 +10,8 @@ def build_context(s, pid, session_id):
               'status': r['data']['status']} for r in project['records'][:150]]
     context = {'project': project['name'], 'revision': project['revision'],
                'index': index, 'index_truncated': len(project['records']) > 150,
-               'totals': project['totals']}
+               'totals': project['totals'], 'planning_summary': project['planning_summary'],
+               'task_boundary': '任务统一在项目日程维护；旧records中的task仅为历史，不代表当前日程，禁止新增或修改。'}
     sessions = sorted((e for e in rows(s, Event, pid) if e.type == 'chat'
                        and e.data.get('session_id') == session_id), key=lambda e: e.created_at)
     messages = []

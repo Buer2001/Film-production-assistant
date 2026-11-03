@@ -18,7 +18,7 @@ function App() {
     api('/projects').then(items => { setProjects(items); if (items.length) setPid(items[0].id); }).catch(e => setError(e.message));
   }, []);
   async function createProject(e) { e.preventDefault(); if (scriptBlocked) return; await act(async () => { const p = await api('/projects', { name }); setProjects([...projects, p]); setPid(p.id); setName(''); }); }
-  return <div className={tab === '剧本' ? 'app script-mode' : 'app'}>
+  return <div className={tab === '剧本' ? 'app script-mode' : tab === '项目日程' ? 'app planning-mode' : 'app'}>
     <aside className="sidebar"><div className="brand">片场<span>学生制片工作台</span></div>
       <label>当前项目<select disabled={busy || scriptBlocked} value={pid} onChange={e => setPid(e.target.value)}><option value="">选择项目</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
       <nav>{tabs.map(t => <button key={t} disabled={scriptBlocked} className={tab === t ? 'active' : ''} onClick={() => { setTab(t); setFilter(''); }}>{t}</button>)}</nav>

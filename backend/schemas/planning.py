@@ -1,7 +1,7 @@
 """项目日程契约：正式事实、计划日期和模型建议分开表达。"""
 from datetime import date as Date
-from typing import Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing import Annotated, Literal
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class Contract(BaseModel):
@@ -66,7 +66,19 @@ class Origin(Contract):
     generation_id: str | None = Field(default=None, max_length=36)
 
 
+PersonOrDepartment = Annotated[str, Field(min_length=1, max_length=50)]
+
+
 class Details(Contract):
+    department: str = Field(default='', max_length=50, description='根据具体任务判断主责部门，如摄影组/灯光组/制片组；工作类别不是部门，确实无法判断时留空')
+    collaborating_departments: list[PersonOrDepartment] = Field(default_factory=list, max_length=8)
+    assignees: list[PersonOrDepartment] = Field(default_factory=list, max_length=20)
+
+    @field_validator('collaborating_departments', 'assignees')
+    @classmethod
+    def unique_names(cls, values):
+        return list(dict.fromkeys(values))
+
     dependencies: list[Dependency] = Field(default_factory=list, max_length=100)
     constraints: list[Constraint] = Field(default_factory=list, max_length=30)
     scene_refs: list[SceneRef] = Field(default_factory=list, max_length=200)
@@ -154,3 +166,14 @@ class DraftInput(Revision):
 
 class ConfirmInput(Revision):
     draft_id: str
+
+
+class DepartmentAssignment(Contract):
+    ref: str = Field(min_length=1, max_length=100)
+    department: str = Field(max_length=50, description='建议主责部门；无法判断时必须为空字符串')
+    collaborating_departments: list[PersonOrDepartment] = Field(default_factory=list, max_length=8)
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class DepartmentResult(Contract):
+    assignments: list[DepartmentAssignment] = Field(max_length=500)

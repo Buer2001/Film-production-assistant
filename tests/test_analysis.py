@@ -92,7 +92,7 @@ def test_impact_finds_paths_notices_and_isolates_project(client):
     b = next(r['id'] for r in st['records'] if r['data']['title'] == '操场')
     st = save(client, p, [
         {'kind': 'schedule', 'data': {'title': '教室拍摄', 'scene_ids': [a], 'date': '2026-10-19'}},
-        {'kind': 'task', 'data': {'title': '准备教室', 'scene_ids': [a]}},
+        {'kind': 'requirement', 'data': {'title': '准备教室', 'scene_ids': [a]}},
         {'kind': 'schedule', 'data': {'title': '操场拍摄', 'scene_ids': [b], 'date': '2026-10-20'}}])
     for day in ['2026-10-19', '2026-10-20']:
         assert client.post(f'/api/projects/{p}/notices', json={'date': day, 'base_revision': 2}).status_code == 200
@@ -146,7 +146,7 @@ def test_stale_parse_cannot_be_imported_and_unknown_resource_warns(client, monke
     monkeypatch.setattr(ModelClient, 'chat', Model([SCENE]).chat)
     p = create(client)
     parsed = client.post(f'/api/projects/{p}/scripts/parse', json={'text': TEXT, 'base_revision': 0}).json()
-    save(client, p, [{'kind': 'task', 'data': {'title': '其他变化'}}])
+    save(client, p, [{'kind': 'requirement', 'data': {'title': '其他变化'}}])
     assert client.post(f'/api/projects/{p}/scripts/{parsed["id"]}/draft', json={}).status_code == 409
     result = client.post(f'/api/projects/{p}/impact', json={'resources': ['未知演员']}).json()
     assert not result['records'] and result['warnings']
@@ -170,7 +170,7 @@ def test_concurrent_parse_conversion_does_not_duplicate_drafts(client, monkeypat
 @pytest.mark.parametrize('name,args', [
     ('confirm', {}), ('search_records', {'unexpected': True}),
     ('propose_change', {'base_revision': 99, 'reason': '过期', 'operations': [
-        {'kind': 'task', 'data': {'title': '不应写入'}}]}),
+        {'kind': 'requirement', 'data': {'title': '不应写入'}}]}),
 ])
 def test_agent_recovers_from_invalid_tools_without_writing(client, name, args):
     from backend.agent.runner import run

@@ -9,7 +9,8 @@ from backend.common.logging.context import request_id
 logger = logging.getLogger('film')
 FIELDS = ('operation', 'duration_ms', 'status', 'method', 'path', 'error_type', 'trace',
           'project_id', 'script_id', 'revision', 'scene_number', 'scene_index', 'field_name',
-          'value_length', 'scene_count', 'error_count', 'provider', 'model', 'input_chars')
+          'value_length', 'scene_count', 'error_count', 'provider', 'model', 'input_chars',
+          'error_types', 'validation_errors', 'tool_call_count', 'operation_count')
 
 
 class JsonFormatter(logging.Formatter):

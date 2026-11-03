@@ -5,12 +5,18 @@ from backend.service.project import get_project, rows, record_dict, change_dict
 from backend.dao import project as project_dao
 from backend.dao import change as dao
 from backend.dao.event import add_event
+from backend.dao import resource as resources
 
 
 def validate_operations(s, pid, operations):
     current = {r.id: r for r in rows(s, Record, pid)}
     before, seen = [], set()
     for op in operations:
+        # 旧任务只保留读取；同时拦住通用接口、Agent及升级前遗留草稿的确认。
+        if op['kind'] == 'task':
+            raise BusinessError(422, '筹备任务已统一到项目日程，请在项目日程维护；旧草稿可取消')
+        if op['kind'] == 'resource' and op.get('delete') and resources.referenced(s, pid, op.get('id')):
+            raise BusinessError(422, '资源仍被正式日程或待确认草稿引用，请先解除关联')
         if op['kind'] == 'expense' and not op.get('delete') and (op.get('data') or {}).get('category') not in ('预算', '报价', '已确定', '实际支出'):
             raise BusinessError(422, '费用分类必须为预算、报价、已确定或实际支出')
         rid = op.get('id')
@@ -35,6 +41,9 @@ def validate_operations(s, pid, operations):
 
 def propose(s, pid, request, *, commit=True):
     p = get_project(s, pid)
+    # 与日程写入采用相同的项目→计划锁顺序，避免资源删除和任务关联竞态。
+    project_dao.lock_project(s, pid)
+    s.refresh(p)
     if p.revision != request.base_revision:
         raise BusinessError(409, '数据已更新，请刷新后重新生成修改')
     operations = [o.model_dump(mode='json') for o in request.operations]

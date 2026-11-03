@@ -21,7 +21,7 @@ TOOLS = {
     'search_records': ('查询当前项目事实，按标题、来源、备注、资源搜索；支持翻页。', Search),
     'check_schedule': ('检查当前正式排期的时间冲突和筹备缺口，不修改数据。', Empty),
     'search_events': ('查找项目历史事件和决策依据，不把历史当当前事实。', Search),
-    'propose_change': ('生成待制片确认的修改草稿；不会正式修改项目。更新记录须提交完整字段。', ChangeInput),
+    'propose_change': ('生成待制片确认的修改草稿；不会正式修改项目。禁止维护旧task筹备任务，任务请到项目日程操作。更新记录须提交完整字段。', ChangeInput),
     'analyze_impact': ('只读分析记录、资源或待确认草稿影响的场次、筹备、排期和通告，返回关联路径。', ImpactInput),
 }
 

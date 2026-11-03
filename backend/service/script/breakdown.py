@@ -52,7 +52,8 @@ def detail(session, pid, sid, store=None, manager=None):
            'deleted_reviewed': draft['deleted_reviewed'] if draft else row.deleted_reviewed,
            'base_revision': draft.get('base_revision', row.revision) if draft else row.revision,
            'read_only': script_service.versions(session, pid)[0].id != sid,
-           'comparison': compare([r for r in current if r.get('resolution') != 'excluded'], previous, bool(row.previous_script_id)),
+           'comparison': compare([r for r in current if r.get('resolution') != 'excluded'], previous, bool(row.previous_script_id),
+                                 draft['deleted_reviewed'] if draft else row.deleted_reviewed),
            'progress': draft['progress'] if draft else {'state': 'confirmed' if row.status == 'confirmed' else 'review', 'stage': '待解析', 'total': len(current), 'completed': sum(r['parse_status'] == 'succeeded' and r['resolution'] != 'manual' for r in current), 'failed': 0, 'sequence': 0, 'started_at': None}}
     doc['can_start_parse'] = (not draft and not doc['read_only'] and row.status != 'confirmed'
                               and all(is_empty_placeholder(entry) for entry in current))
@@ -203,11 +204,11 @@ def confirm(session, pid, sid, request, store=None):
         if any(r.get('parse_status') in ('failed', 'pending', 'running') and r.get('resolution') != 'manual' for r in kept):
             raise BusinessError(422, '请人工补齐或明确排除未完成的场次')
         if row.previous_script_id:
-            if any(r['match_status'] == 'pending' or not r['change_reviewed'] for r in kept):
-                raise BusinessError(422, '请处理场次匹配并逐场确认变更')
-            comparison = compare(kept, value['previous_scenes'], True)
-            if comparison['deleted'] and not value['deleted_reviewed']:
-                raise BusinessError(422, '请核对已删除的场次')
+            comparison = compare(kept, value['previous_scenes'], True, value['deleted_reviewed'])
+            unreviewed = (any(r['match_status'] == 'pending' or not r['change_reviewed'] for r in kept)
+                          or bool(comparison['unlinked']))
+            if unreviewed and not request.accept_unreviewed:
+                raise BusinessError(422, '仍有未匹配或未核对的版本变化，可逐场处理，或明确选择直接确认本版')
         if (value['review_issues'] or any(missing(r) for r in kept)) and not request.accept_missing:
             raise BusinessError(422, '仍有待补信息，请补齐或明确接受这些提示')
         if not scripts.claim(session, sid, value.get('base_revision', row.revision)):
@@ -215,7 +216,8 @@ def confirm(session, pid, sid, request, store=None):
         scenes.replace(session, sid, kept)
         row.revision = value['revision'] + 1
         row.status, row.confirmed_at, row.deleted_reviewed = 'confirmed', now(), value['deleted_reviewed']
-        scripts.log(session, pid, 'confirm', {'script_id': sid, 'revision': row.revision, 'accepted_missing': request.accept_missing})
+        scripts.log(session, pid, 'confirm', {'script_id': sid, 'revision': row.revision,
+            'accepted_missing': request.accept_missing, 'accepted_unreviewed': request.accept_unreviewed})
         session.commit()
         value.update(revision=row.revision, base_revision=row.revision, status='confirmed', confirmed_at=row.confirmed_at)
         value['progress'].update(state='confirmed', stage='已确认')

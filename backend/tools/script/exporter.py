@@ -71,6 +71,12 @@ def export_workbook(doc):
         for row in doc['comparison'][kind]:
             changes.append([label, row['scene_number'], '', row['summary'] if kind == 'deleted' else '',
                             row['summary'] if kind == 'added' else ''])
+    for row in doc['comparison'].get('unlinked', []):
+        changes.append(['未关联旧场次（未确认删除）', row['scene_number'], '', row.get('summary', ''), ''])
+    by_id = {row['id']: row for row in doc['scenes']}
+    for item in doc['comparison'].get('pending', []):
+        row = by_id.get(item['id'], {})
+        changes.append(['待匹配（未确认新增）', row.get('scene_number', ''), '', '', row.get('summary', '')])
     output = BytesIO()
     with ZipFile(output, 'w', ZIP_DEFLATED) as z:
         z.writestr('[Content_Types].xml', '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>')
