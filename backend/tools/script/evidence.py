@@ -1,9 +1,13 @@
+# 文件职责：检查模型字段的原文依据，生成定位证据和待核对提示。
 from backend.tools.normalization import normalized
 from backend.common.errors import BusinessError
 from backend.common.logging.config import logger
 from backend.schemas.script import SceneData
 
 
+# 用途：判定场次是否为完全无内容的占位。
+# 参数：row 为场次字典。
+# 返回及副作用：返回 bool；同时检查固定字段、提取结果、原文、前版关联和自定义值。
 def is_empty_placeholder(row):
     """只识别完全没有内容和提取依据的占位。"""
     return (all(row.get(key) in (None, '', [], {}) for key in SceneData.model_fields)
@@ -13,6 +17,9 @@ def is_empty_placeholder(row):
             and not any(row.get('custom_values', {}).values()))
 
 
+# 用途：展开需要原文支持的提取字段。
+# 参数：scene 为模型提取场次对象。
+# 返回及副作用：返回字段路径及文本值二元组列表，覆盖场号、内外、气氛、场景、角色、道具及妆造。
 def field_claims(scene):
     claims = [(key, getattr(scene, key)) for key in
               ('scene_number', 'interior_exterior', 'atmosphere', 'location')]
@@ -24,10 +31,14 @@ def field_claims(scene):
     return claims
 
 
+# 用途：按提取顺序定位场次原文并验证字段依据。
+# 参数：text 为完整保存原文，extraction 为含 scenes 的提取结果模型。
+# 返回及副作用：返回场次列表及未覆盖原文提醒；证据缺失、重叠、乱序或字段无原文支持时记诊断日志并抛 BusinessError，不保存结果。
 def locate(text, extraction):
     cursor, result, warnings, failures = 0, [], [], []
     for scene in extraction.scenes:
         raw = scene.evidence_text
+        # 从上一场结束位置向后查找，既验证顺序，也禁止同一段证据被重叠复用。
         start = text.find(raw, cursor)
         if start < 0:
             logger.warning('evidence.source_mismatch', extra={
@@ -61,6 +72,9 @@ def locate(text, extraction):
     return result, warnings
 
 
+# 用途：生成场次必需信息缺失提醒。
+# 参数：data 为场次字段字典。
+# 返回及副作用：返回场号、内外、气氛、场景、内容待补及演员分类待确认提示，不修改输入。
 def missing(data):
     labels = {'scene_number': '场号', 'interior_exterior': '内外', 'atmosphere': '气氛',
               'location': '场景', 'summary': '内容'}
@@ -70,6 +84,9 @@ def missing(data):
     return issues
 
 
+# 用途：检测重复非空场号。
+# 参数：entries 为场次字典列表。
+# 返回及副作用：返回按遇到顺序生成的重复场号提示，不修改场次或自动去重。
 def duplicate_warnings(entries):
     seen, warnings = set(), []
     for row in entries:

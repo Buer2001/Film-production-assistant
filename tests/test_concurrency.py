@@ -1,3 +1,4 @@
+# 测试职责：使用独立数据库会话和线程屏障验证变更确认的并发一致性。
 from concurrent.futures import ThreadPoolExecutor
 from threading import Barrier
 
@@ -10,6 +11,8 @@ from backend.common.database.store import Change, Event, Project, Record
 from backend.service.change import confirm
 
 
+# 用途：构造共享基础版本的两份草稿，为并发确认提供测试数据。
+# 参数：tmp_path 为临时目录；产出客户端、项目ID和草稿ID列表。
 @pytest.fixture
 def race(tmp_path):
     with TestClient(create_app(f"sqlite:///{tmp_path / 'race.db'}")) as client:
@@ -24,6 +27,8 @@ def race(tmp_path):
         yield client, pid, drafts
 
 
+# 用途：将一组操作在线程池中启动，并向每个操作传入同一个线程屏障。
+# 参数：actions 为接收屏障的可调用列表；返回各操作的结果列表。
 def compete(actions):
     barrier = Barrier(len(actions))
 
@@ -34,6 +39,8 @@ def compete(actions):
         return list(pool.map(run, actions))
 
 
+# 用途：构造在独立会话中预读草稿、等待并发屏障后确认的测试操作。
+# 参数：client 为客户端，pid/cid 为项目和草稿ID；返回接收屏障的函数。
 def accept(client, pid, cid):
     # 每个线程持有独立 session，并预读草稿以放大同一旧状态的竞争。
     def action(barrier):
@@ -49,6 +56,8 @@ def accept(client, pid, cid):
     return action
 
 
+# 用途：直接读取数据库，核对并发请求后的真实持久化状态。
+# 参数：client 为客户端，pid 为项目ID；返回版本、记录标题、事件数和草稿状态映射。
 def persisted(client, pid):
     with client.app.state.sessions() as session:
         project = session.get(Project, pid)
@@ -58,6 +67,9 @@ def persisted(client, pid):
         return project.revision, [r.data['title'] for r in records], len(events), {c.id: c.status for c in changes}
 
 
+# 用例：八个并发确认请求最多产生一次正式写入和一次版本推进。
+# 参数：race 为包含客户端、项目和两份草稿的并发测试夹具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_eight_confirmations_write_once(race):
     client, pid, (cid, _) = race
     results = compete([accept(client, pid, cid) for _ in range(8)])
@@ -68,6 +80,9 @@ def test_eight_confirmations_write_once(race):
     assert changes[cid] == 'confirmed'
 
 
+# 用例：同一草稿的确认和拒绝竞争时只允许一方成功，并保持数据一致。
+# 参数：race 为包含客户端、项目和两份草稿的并发测试夹具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_confirm_competes_with_reject(race):
     client, pid, (cid, _) = race
 
@@ -86,6 +101,9 @@ def test_confirm_competes_with_reject(race):
         assert (revision, records, events) == (0, [], 0)
 
 
+# 用例：相同基础版本的不同草稿并发确认时只允许一个成功。
+# 参数：race 为包含客户端、项目和两份草稿的并发测试夹具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_different_drafts_same_revision(race):
     client, pid, drafts = race
     results = compete([accept(client, pid, cid) for cid in drafts])

@@ -1,5 +1,10 @@
+// 只读展示场次原文定位、人工编辑标记和完整剧本，辅助核对来源。
 import React from 'react';
 
+/**
+ * 参数：scene 为场次，content 为完整原文，onClose 收起面板；返回核对 JSX，无场次时返回 null。
+ * 原文定位只用于追溯，不代表模型提取已经正确或完整。
+ */
 export default function EvidencePanel({ scene, content, onClose }) {
   if (!scene) return null;
   const evidence = scene.evidence || {};

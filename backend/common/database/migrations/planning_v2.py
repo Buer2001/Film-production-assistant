@@ -1,8 +1,10 @@
+# 增量创建日程表并检查字段及项目唯一约束，避免带错表结构启动。
 """V2 增量建表；不修改旧表，不以清库替代升级。"""
 from sqlalchemy import inspect
 from backend.models.planning import ProjectPlan, ProjectTask
 
 
+# 使用 engine 的事务连接增量建表并校验现存结构；缺字段或关键约束时抛 RuntimeError，无返回值。
 def upgrade(engine):
     with engine.begin() as connection:
         for table in (ProjectPlan.__table__, ProjectTask.__table__):

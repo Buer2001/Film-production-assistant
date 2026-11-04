@@ -1,5 +1,10 @@
+// 编辑项目拍摄日期和现状，保存动作交由父工作区处理。
 import React from 'react';
 
+/**
+ * 参数：value 为设置，onChange 接收完整新设置，onSave 提交，busy/dirty 控制可编辑状态和保存入口。
+ * 返回受控表单 JSX；未知日期保持 null，不自行推算。
+ */
 export default function PlanSettings({ value, onChange, onSave, busy, dirty }) {
   const field = (key, v) => onChange({ ...value, [key]: v });
   return <section><h2>项目安排</h2><p>从现在的筹备到拍摄结束，再到器材道具归还和费用结清。杀青、收尾日期未知时可留空，模型会提出待确认问题。</p>

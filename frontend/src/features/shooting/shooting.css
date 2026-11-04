@@ -1,0 +1,95 @@
+/* 拍摄工作区沿用项目的深绿和纸白色；样式限定在独立类名，避免影响旧业务页面。 */
+.app.shooting-mode { grid-template-columns: 215px minmax(0, 1fr); }
+.app.shooting-mode .sidebar select { color: #25382c; }
+.shoot-workspace { max-width: 1240px; margin: 0 auto; }
+.shoot-topline,.shoot-toolbar,.shoot-heading,.shoot-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.shoot-topline { margin-bottom: 24px; }
+.shoot-eyebrow { color: #446650; font-size: 11px; font-weight: 700; letter-spacing: .16em; }
+.shoot-topline p { margin: 9px 0 0; font-size: 14px; }
+.shoot-workspace .shoot-primary,.shoot-dialog .shoot-primary { background: #284e3a; color: #fff; border-color: #284e3a; }
+.shoot-primary:hover { background: #1f3d2e; }
+.shoot-metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 12px; margin-bottom: 26px; }
+.shoot-metrics>div { background: #fff; border: 1px solid #e0e5dc; border-radius: 12px; padding: 18px 22px; }
+.shoot-metrics small { display: block; font-size: 12px; }
+.shoot-metrics strong { display: block; font-size: 30px; font-weight: 500; margin-top: 10px; color: #244d36; }
+.shoot-toolbar { margin: 0 0 18px; }
+.shoot-tabs { display: flex; padding: 4px; gap: 4px; border: 1px solid #dce3d8; border-radius: 10px; background: #e9ede4; }
+.shoot-tabs button { border: 0; background: transparent; padding: 9px 20px; color: #5b6b60; }
+.shoot-tabs button[aria-pressed=true] { background: #fff; color: #244d36; box-shadow: 0 1px 4px #243d3010; }
+.shoot-layout { display: grid; grid-template-columns: 165px minmax(0,1fr); gap: 20px; align-items: start; }
+.shoot-days { padding: 5px 0; }
+.shoot-days>label { margin: 0 0 18px; }
+.shoot-date-list { display: grid; gap: 6px; max-height: 530px; overflow: auto; }
+.shoot-date-list button { display: flex; justify-content: space-between; align-items: center; gap: 7px; padding: 13px 12px; border: 1px solid transparent; background: transparent; }
+.shoot-date-list button.selected { background: #e0e9d7; border-color: #c6d6b8; }
+.shoot-date-list small { font-size: 11px; }
+.shoot-day-content { min-height: 360px; padding: 24px; }
+.shoot-heading h2 { margin: 4px 0 12px; }
+.shoot-inline { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: #68756b; }
+.shoot-inline input { width: auto; margin: 0; accent-color: #345c43; }
+.shoot-timeline { margin-top: 8px; }
+.shoot-card { display: flex; gap: 22px; padding: 22px 0; border-top: 1px solid #e7ebe4; }
+.shoot-card.cancelled { opacity: .65; }
+.shoot-time { flex: 0 0 80px; padding-top: 3px; }
+.shoot-time strong { display: block; color: #2b513b; font-size: 18px; font-weight: 500; }
+.shoot-time span { display: block; margin-top: 7px; font-size: 12px; color: #738073; }
+.shoot-card-main { flex: 1; min-width: 0; border-left: 3px solid #a5b997; padding-left: 18px; }
+.kind-meal .shoot-card-main,.kind-transfer .shoot-card-main { border-color: #d9cda4; }
+.kind-lighting .shoot-card-main,.kind-set .shoot-card-main { border-color: #a3b9bb; }
+.shoot-card-title { display: flex; gap: 6px; }
+.shoot-badge { display: inline-block; background: #edf3e9; color: #3a6245; border-radius: 5px; padding: 4px 8px; font-size: 11px; line-height: 1.3; }
+.shoot-badge.amber { background: #fbf0d6; color: #82611c; }
+.shoot-card h3 { font-size: 17px; margin: 10px 0 4px; }
+.shoot-card p { font-size: 13px; margin: 5px 0; }
+.shoot-workspace .shoot-muted,.shoot-dialog .shoot-muted { font-size: 12px; color: #6c796e; }
+.shoot-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.shoot-chips span { background: #f3f5f0; border: 1px solid #e5e9df; color: #526355; padding: 4px 8px; font-size: 11px; border-radius: 5px; }
+.shoot-actions { justify-content: flex-start; margin-top: 14px; }
+.shoot-actions button { font-size: 12px; padding: 7px 11px; }
+.shoot-note { white-space: pre-wrap; overflow-wrap: anywhere; }
+.shoot-empty { text-align: center; padding: 48px 18px; }
+.shoot-empty>span { display: block; font-size: 32px; color: #a1b095; margin-bottom: 12px; }
+.shoot-empty p { font-size: 13px; margin-bottom: 22px; }
+.shoot-issues { background: #fbf5e5; border: 1px solid #eadfbd; color: #715c29; border-radius: 8px; padding: 10px 14px; margin: 12px 0; font-size: 12px; }
+.shoot-issues p { color: inherit; margin: 8px 0; }
+.shoot-log { padding: 20px 0; border-top: 1px solid #e4e9df; }
+.shoot-log p { font-size: 13px; }
+.shoot-unplanned { border: 1px solid #dfe5d8; border-radius: 10px; padding: 14px 18px; margin-bottom: 14px; background: #fafbf7; }
+.shoot-unplanned summary { font-size: 13px; }
+.shoot-footnote { text-align: center; font-size: 11px; color: #7a8779; padding-top: 6px; }
+.shoot-dialog { width: min(720px,calc(100vw - 32px)); max-height: 90vh; border: 1px solid #d5dfd1; border-radius: 16px; padding: 26px; color: #25382c; background: #fff; box-shadow: 0 20px 80px #122b2440; }
+.shoot-dialog::backdrop { background: #182e2670; }
+.shoot-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.shoot-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.shoot-dialog label { font-size: 12px; }
+.shoot-references { border: 1px solid #dfe6da; border-radius: 8px; padding: 10px 14px; margin: 14px 0; }
+.shoot-references legend { font-size: 12px; color: #63745f; padding: 0 5px; }
+.shoot-references>div { display: flex; flex-wrap: wrap; gap: 7px 18px; max-height: 160px; overflow: auto; }
+.shoot-references label { display: flex; gap: 6px; align-items: center; margin: 5px 0; }
+.shoot-references input { width: auto; margin: 0; accent-color: #345c43; }
+.shoot-dialog footer { border-top: 1px solid #e2e7dd; padding-top: 16px; }
+.shoot-dialog footer>span { flex: 1; }
+.shoot-date-input { margin: 0; width: 175px; }
+.shoot-call-layout { display: grid; grid-template-columns: minmax(240px,340px) minmax(0,1fr); gap: 20px; align-items: start; }
+.shoot-call-editor { padding: 22px; }
+.shoot-call-editor textarea { min-height: 72px; font-size: 13px; }
+.shoot-call-preview { padding: 22px; }
+.shoot-notice-preview { border: 1px solid #e1e6dc; border-radius: 8px; padding: 24px; background: #fdfefb; overflow-wrap: anywhere; }
+.shoot-notice-title { border-bottom: 2px solid #34553e; padding-bottom: 10px; margin-bottom: 18px; }
+.shoot-notice-title small { letter-spacing: .13em; font-size: 10px; }
+.shoot-notice-title h2 { font-size: 19px; margin: 10px 0; }
+.shoot-notice-title p { margin: 0; font-size: 12px; }
+.shoot-notice-details { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
+.shoot-notice-details>div:last-child { grid-column: 1/-1; }
+.shoot-notice-details small { font-size: 11px; color: #73806e; }
+.shoot-notice-details p { font-size: 13px; margin: 5px 0 12px; white-space: pre-wrap; }
+.shoot-notice-slots article { border-top: 1px solid #e1e6dc; padding: 16px 0 6px; }
+.shoot-notice-slots strong { font-size: 12px; font-weight: 500; }
+.shoot-notice-slots p { font-size: 12px; margin: 7px 0; }
+.shoot-publish { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+.shoot-publish p { flex: 1; }
+.shoot-success { padding: 12px 16px; border-radius: 8px; background: #e7f1e1; color: #335c3c; font-size: 13px; }
+.shoot-history>details { margin-top: 10px; }
+.shoot-download { display: inline-block; font-size: 13px; margin-top: 16px; }
+@media(max-width:1000px) { .app.shooting-mode { grid-template-columns: 180px minmax(0,1fr); } .shoot-call-layout { grid-template-columns: 1fr; } .shoot-call-editor .shoot-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; } .shoot-call-editor .shoot-fields label:last-child { grid-column: 1/-1; } }
+@media(max-width:650px) { .app.shooting-mode { display: block; } .shoot-metrics { grid-template-columns: 1fr 1fr; gap: 8px; } .shoot-metrics>div { padding: 14px; } .shoot-layout { grid-template-columns: 1fr; gap: 0; } .shoot-date-list { display: flex; overflow-x: auto; margin-bottom: 14px; } .shoot-date-list button { min-width: 140px; } .shoot-days>label { max-width: 200px; } .shoot-day-content { padding: 16px; } .shoot-card { gap: 10px; } .shoot-time { flex-basis: 64px; } .shoot-time strong { font-size: 16px; } .shoot-card-main { padding-left: 12px; } .shoot-form-grid,.shoot-notice-details,.shoot-call-editor .shoot-fields { grid-template-columns: 1fr; gap: 0; } .shoot-dialog { padding: 18px; } .shoot-notice-preview { padding: 16px; } }

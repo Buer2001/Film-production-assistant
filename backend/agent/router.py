@@ -1,3 +1,4 @@
+# 接收项目对话请求，把模型配置或通信失败转换为 HTTP 响应。
 from backend.common.dependencies import get_session
 from fastapi import APIRouter, Depends, HTTPException
 from backend.common.errors import BusinessError
@@ -8,6 +9,7 @@ from backend.agent.runner import run
 router = APIRouter()
 
 
+# 接收路径 pid 和 AgentInput 请求，调用对话循环并返回回答及工具轨迹；配置失败转 503，其他模型失败转 502。
 @router.post('/api/projects/{pid}/agent')
 async def agent(pid: str, request: AgentInput, s=Depends(get_session)):
     get_project(s, pid)

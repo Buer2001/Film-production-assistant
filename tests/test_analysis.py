@@ -1,3 +1,4 @@
+# 测试职责：旧版解析和影响分析的业务契约；模拟模型只提供固定响应，不验证真实模型准确率。
 """Offline business evaluations; no paid model requests."""
 import asyncio
 import json
@@ -8,16 +9,23 @@ from backend.main import create_app
 from backend.ai.legacy_extractor import extract_script
 
 
+# 用途：创建使用临时SQLite数据库的测试应用，并由上下文管理应用生命周期。
+# 参数：tmp_path 为pytest临时目录；存在 monkeypatch 参数时用于隔离草稿、日志或模型依赖。
+# 产出：FastAPI TestClient；测试结束后退出客户端上下文，不连接正式数据库。
 @pytest.fixture
 def client(tmp_path):
     with TestClient(create_app(f"sqlite:///{tmp_path / 'analysis.db'}")) as c:
         yield c
 
 
+# 测试替身：保存预设模型结果，chat返回固定响应，不连接真实模型。
+# 构造参数：scenes 为旧版场次列表。
 class Model:
+    # 保存构造时传入的预设响应，供后续chat使用；不进行校验。
     def __init__(self, scenes):
         self.scenes = scenes
 
+    # 接收messages和tools以兼容真实客户端接口；返回预设响应，不产生网络请求。
     async def chat(self, messages, tools):
         return {'tool_calls': [{'function': {'name': 'submit_script',
             'arguments': json.dumps({'scenes': self.scenes}, ensure_ascii=False)}}]}
@@ -29,6 +37,8 @@ SCENE = {'title': '第1场 教室 日 内', 'evidence': TEXT,
          'time': '日', 'interior': '内', 'questions': []}
 
 
+# 用例：解析后保留原文及行号，并规范化人物名称。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_parse_preserves_evidence_and_normalizes_names():
     result = asyncio.run(extract_script(TEXT, Model([{**SCENE, 'characters': [' 小雨 ', '小雨']}])) )
     assert result['scenes'][0]['characters'] == ['小雨']
@@ -37,6 +47,9 @@ def test_parse_preserves_evidence_and_normalizes_names():
     assert result['scenes'][0]['evidence'] == TEXT
 
 
+# 用例：模型声称的内容缺乏原文支持时，拒绝接受解析结果。
+# 参数：patch 为构造不受原文支持结果的字段修改。
+# 返回：无；使用断言或预期异常检查上述行为。
 @pytest.mark.parametrize('patch', [
     {'evidence': '不存在的原文'}, {'characters': ['杜撰演员']},
     {'props': ['不存在的手枪']}, {'location': '火星'},
@@ -48,10 +61,13 @@ def test_parse_rejects_unsupported_claims(patch):
     assert exc.value.status_code == 422
 
 
+# 用途：通过HTTP创建测试项目。参数 c 为测试客户端；返回新项目ID。
 def create(c):
     return c.post('/api/projects', json={'name': '评估剧组'}).json()['id']
 
 
+# 用途：按项目当前版本提交并确认测试变更。
+# 参数：c 为客户端，p 为项目ID，ops 为变更列表；返回确认后的项目快照。
 def save(c, p, ops):
     revision = c.get(f'/api/projects/{p}').json()['revision']
     draft = c.post(f'/api/projects/{p}/changes', json={
@@ -61,6 +77,9 @@ def save(c, p, ops):
     return c.get(f'/api/projects/{p}').json()
 
 
+# 用例：解析预览和草稿不会直接写正式记录，确认才落库，过期版本禁止转换。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_parse_preview_draft_approval_and_stale_version(client, monkeypatch):
     from backend.ai.client import ModelClient
     monkeypatch.setattr(ModelClient, 'chat', Model([SCENE]).chat)
@@ -84,6 +103,9 @@ def test_parse_preview_draft_approval_and_stale_version(client, monkeypatch):
     assert stale.status_code == 409
 
 
+# 用例：影响分析沿关联路径查找记录和通告，并校验项目隔离及版本。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_impact_finds_paths_notices_and_isolates_project(client):
     p, other = create(client), create(client)
     st = save(client, p, [{'kind': 'scene', 'data': {'title': '教室', 'resources': ['小雨']}},
@@ -108,6 +130,9 @@ def test_impact_finds_paths_notices_and_isolates_project(client):
     assert client.post(f'/api/projects/{p}/impact', json={}).status_code == 422
 
 
+# 用例：删除建议仍根据现有记录的关联分析影响，且不自动确认变更。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_impact_of_pending_deletion_uses_existing_links(client):
     p = create(client)
     st = save(client, p, [{'kind': 'scene', 'data': {'title': '教室'}}])
@@ -121,6 +146,9 @@ def test_impact_of_pending_deletion_uses_existing_links(client):
     assert client.get(f'/api/projects/{p}').json()['changes'][-1]['status'] == 'pending'
 
 
+# 用例：新增拍摄建议能找到共享资源冲突及相关日期的通告。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_new_schedule_draft_finds_shared_resources_and_notice(client):
     p = create(client)
     st = save(client, p, [{'kind': 'schedule', 'data': {'title': '原计划',
@@ -134,6 +162,8 @@ def test_new_schedule_draft_finds_shared_resources_and_notice(client):
     assert result['notices'][0]['date'] == '2026-10-19'
 
 
+# 用例：缺失人物、昼夜、内外景或未覆盖原文时生成待确认提示。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_parse_reports_missing_conditions_and_uncovered_text():
     scene = {**SCENE, 'characters': [], 'time': '', 'interior': ''}
     result = asyncio.run(extract_script('说明文字\n' + TEXT + '\n未拆解结尾', Model([scene])))
@@ -141,6 +171,9 @@ def test_parse_reports_missing_conditions_and_uncovered_text():
     assert {'人物待确认', '昼夜待确认', '内外景待确认'} <= set(result['scenes'][0]['questions'])
 
 
+# 用例：过期解析禁止转入变更草稿，未知资源的影响分析给出提示。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_stale_parse_cannot_be_imported_and_unknown_resource_warns(client, monkeypatch):
     from backend.ai.client import ModelClient
     monkeypatch.setattr(ModelClient, 'chat', Model([SCENE]).chat)
@@ -153,6 +186,9 @@ def test_stale_parse_cannot_be_imported_and_unknown_resource_warns(client, monke
     assert client.get(f'/api/projects/{p}').json()['changes'][0]['status'] == 'confirmed'
 
 
+# 用例：并发转换同一解析结果时复用草稿，避免重复创建。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_concurrent_parse_conversion_does_not_duplicate_drafts(client, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
     from backend.ai.client import ModelClient
@@ -167,6 +203,9 @@ def test_concurrent_parse_conversion_does_not_duplicate_drafts(client, monkeypat
     assert len(client.get(f'/api/projects/{p}').json()['changes']) == 1
 
 
+# 用例：Agent收到非法工具调用结果后可继续回答，且不写入业务数据。
+# 参数：client 为测试应用客户端；name 为模拟工具名称；args 为模拟工具参数。
+# 返回：无；使用断言或预期异常检查上述行为。
 @pytest.mark.parametrize('name,args', [
     ('confirm', {}), ('search_records', {'unexpected': True}),
     ('propose_change', {'base_revision': 99, 'reason': '过期', 'operations': [

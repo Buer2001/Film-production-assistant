@@ -1,3 +1,4 @@
+# 配置受管日志处理器和 JSON 白名单字段，支持轮转文件及控制台输出。
 import json
 import logging
 import os
@@ -13,7 +14,9 @@ FIELDS = ('operation', 'duration_ms', 'status', 'method', 'path', 'error_type', 
           'error_types', 'validation_errors', 'tool_call_count', 'operation_count')
 
 
+# 把标准日志和白名单诊断字段序列化为一行 JSON。
 class JsonFormatter(logging.Formatter):
+    # 把日志 record 转成 JSON 文本，仅包含基础信息、请求 ID 和允许的扩展字段。
     def format(self, record):
         payload = {'time': datetime.now(timezone.utc).isoformat(), 'level': record.levelname,
                    'event': record.getMessage(), 'request_id': request_id.get()}
@@ -21,6 +24,7 @@ class JsonFormatter(logging.Formatter):
         return json.dumps(payload, ensure_ascii=False)
 
 
+# 按 LOG_DIR 创建目录并安装轮转文件和控制台处理器，返回日志目录；重复调用只替换本模块的处理器。
 def configure_logging():
     root = Path(__file__).resolve().parents[3]
     directory = Path(os.getenv('LOG_DIR', 'logs'))

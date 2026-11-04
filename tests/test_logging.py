@@ -1,3 +1,4 @@
+# 测试职责：验证请求和业务异常的统一日志，重点检查请求标识及敏感信息隔离。
 import json, logging
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -8,6 +9,9 @@ from backend.tools.script.evidence import locate
 import pytest
 
 
+# 用例：拆解缺少必填字段时，错误和日志能够指出场次及字段。
+# 参数：caplog 为捕获日志的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_missing_field_error_identifies_scene_and_field(caplog):
     parsed = Extraction.model_validate({'scenes': [{'scene_number': '1', 'location': '不存在场地',
         'evidence_text': '1 内 日 车内\n晚来握着玉佩。'}]})
@@ -18,6 +22,9 @@ def test_missing_field_error_identifies_scene_and_field(caplog):
     assert any(getattr(record, 'field_name', '') == 'location' for record in caplog.records)
 
 
+# 用例：请求中间件统一记录请求信息，业务函数无需日志装饰器。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_middleware_logs_requests_without_business_decorators(tmp_path, monkeypatch):
     monkeypatch.setenv('LOG_DIR', str(tmp_path / 'logs'))
     app = create_app(f"sqlite:///{tmp_path / 'logs.db'}")
@@ -43,6 +50,9 @@ def test_middleware_logs_requests_without_business_decorators(tmp_path, monkeypa
     assert any(row['event'] == 'http.complete' and row.get('status') == 404 for row in logs)
 
 
+# 用例：异步处理错误和请求参数错误都保留可追踪的请求标识。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_async_and_validation_errors_have_request_ids(tmp_path, monkeypatch):
     from backend.common.logging.context import request_id
     monkeypatch.setenv('LOG_DIR', str(tmp_path / 'logs'))
@@ -65,6 +75,9 @@ def test_async_and_validation_errors_have_request_ids(tmp_path, monkeypatch):
     assert request_id.get() == '-'
 
 
+# 用例：旧业务路径的失败使用同一套中间件日志，且不记录敏感载荷。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具；caplog 为捕获日志的pytest工具；operation 为触发失败的操作类型。
+# 返回：无；使用断言或预期异常检查上述行为。
 @pytest.mark.parametrize('operation', ['parse_script', 'run'])
 def test_legacy_errors_use_same_middleware_log(tmp_path, monkeypatch, caplog, operation):
     import backend.agent.router as agent_router

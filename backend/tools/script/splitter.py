@@ -1,3 +1,4 @@
+# 文件职责：按明确标题分场并保存原文证据；无法识别可靠边界时保留内容供人工核对。
 """根据明确场次标题分段；不确定边界保留原文，交人工核对。"""
 import re
 
@@ -10,6 +11,9 @@ ENGLISH = re.compile(r'^\s*(?:INT\.?|EXT\.?|INT\.?\s*/\s*EXT\.?)\s', re.I)
 NON_SCENE = re.compile(r'演职人员表|演职员表|演员表|制作人员|片尾字幕|片头字幕|^目录\s*$')
 
 
+# 用途：识别中文编号或英文内外景标题并按字符位置切分。
+# 参数：text 为已规范换行的剧本原文。
+# 返回及副作用：返回 scenes 和 warnings；保留原文偏移及行号，排除明确非叙事资料，超过 200 场抛 BusinessError，不静默截断。
 def split_scenes(text):
     lines = text.splitlines(keepends=True)
     markers, cursor = [], 0
@@ -23,6 +27,7 @@ def split_scenes(text):
             markers.append((cursor, '', False))
         elif NON_SCENE.fullmatch(title):
             markers.append((cursor, '', True))
+        # 偏移按原始字符累计而非 strip 后标题长度，确保切片及行号仍对应完整保存原文。
         cursor += len(line)
     warnings, scenes = [], []
     if not markers:

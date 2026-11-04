@@ -1,5 +1,10 @@
+// 通过粘贴或 UTF-8 TXT 收集原文，提交新剧本版本载荷。
 import React, { useState } from 'react';
 
+/**
+ * 参数：previous 为上一版本，busy 控制操作，onImport 接收新版本载荷；返回导入表单 JSX。
+ * 保留上一版引用，不修改旧版原文；文件读取和服务端导入分别由 reading、busy 管理。
+ */
 export default function ScriptImport({ previous, busy, onImport }) {
   const [title, setTitle] = useState(previous?.title || '');
   const [label, setLabel] = useState('');
@@ -7,6 +12,9 @@ export default function ScriptImport({ previous, busy, onImport }) {
   const [source, setSource] = useState('粘贴文本');
   const [error, setError] = useState('');
   const [reading, setReading] = useState(false);
+  /**
+   * 参数 event 为文件选择事件；异步读取 TXT，校验扩展名、字节大小、UTF-8 编码及字符数，失败显示本地错误。
+   */
   async function readFile(event) {
     const file = event.target.files?.[0];
     if (!file) return;

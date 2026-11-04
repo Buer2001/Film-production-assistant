@@ -9,6 +9,10 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 
+# 用途：运行选定的离线业务契约测试，读取 JUnit 结果并生成 JSON 评估报告。
+# 参数：通过命令行 --output 指定报告路径，默认 docs/evaluation-report.json。
+# 返回：退出码整数；优先沿用测试进程的非零退出码，进程成功且有报告用例时为 0，否则为 1。
+# 限制：使用模拟模型和测试数据库，报告不能证明真实模型准确率或线上可用性。
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', default='docs/evaluation-report.json')
@@ -19,6 +23,7 @@ def main():
         process = subprocess.run([sys.executable, '-m', 'pytest', 'tests/test_analysis.py',
             'tests/test_workflow.py', 'tests/test_scripts_v1.py', 'tests/test_streaming.py',
             'tests/test_draft_tools.py', 'tests/test_empty_placeholder.py', '-q', f'--junitxml={report}'], cwd=root)
+        # 从每个用例提取状态和耗时；同时保留失败摘要，便于报告定位回归。
         cases = []
         if report.exists():
             for case in ElementTree.parse(report).iter('testcase'):

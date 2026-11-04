@@ -1,4 +1,9 @@
+// 展示逐场解析进度、连接状态以及人工处理和排除数量。
 import React, { useEffect, useState } from 'react';
+/**
+ * 参数：doc 为草稿，connection 为 SSE 状态，onReconnect/onStop 处理重连及中止，disabled 控制中止按钮。
+ * 返回进度 JSX，无 progress 时返回 null；仅运行时开启秒级计时，状态变化或卸载时清理定时器。
+ */
 export default function ProgressPanel({ doc, connection, onReconnect, onStop, disabled }) {
   const p = doc.progress, [now, setNow] = useState(Date.now());
   useEffect(() => { if (p?.state !== 'running') return; setNow(Date.now()); const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer); }, [p?.state]);

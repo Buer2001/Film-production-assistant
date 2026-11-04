@@ -1,3 +1,4 @@
+# 文件职责：基于明确场次关联和资源名称追踪影响，不自动调整安排。
 from collections import deque
 from backend.common.errors import BusinessError
 from backend.models.notice import Notice
@@ -7,6 +8,9 @@ from backend.tools.normalization import normalized, unique
 from backend.schemas.impact import ImpactInput
 
 
+# 用途：以广度优先遍历形成受影响记录及关联路径。
+# 参数：s/pid 为会话及项目，request 含版本、记录、资源和可选草稿 ID。
+# 返回及副作用：返回记录、通告及核对建议；对象或版本不合法抛 BusinessError，不修改正式数据。
 def analyze_impact(s, pid, request):
     project = get_project(s, pid)
     if request.base_revision is not None and project.revision != request.base_revision:
@@ -52,6 +56,7 @@ def analyze_impact(s, pid, request):
             if scene in records:
                 edges[rid].add(scene)
                 edges[scene].add(rid)
+    # 从明确命中的记录出发沿双向场次关联遍历；每个节点只访问一次，保留首次找到的解释路径。
     queue = deque(paths)
     while queue:
         rid = queue.popleft()

@@ -1,3 +1,4 @@
+# 测试职责：验证任务统一到日程后的旧入口关闭，以及共享资源的引用保护。
 """V2收口：只在临时库验证资源、旧写入边界及正式任务统计。"""
 import pytest
 from fastapi.testclient import TestClient
@@ -5,6 +6,9 @@ from backend.main import create_app
 from backend.models.change import Change
 
 
+# 用途：创建使用临时SQLite数据库的测试应用，并由上下文管理应用生命周期。
+# 参数：tmp_path 为pytest临时目录；存在 monkeypatch 参数时用于隔离草稿、日志或模型依赖。
+# 产出：FastAPI TestClient；测试结束后退出客户端上下文，不连接正式数据库。
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
@@ -12,10 +16,15 @@ def client(tmp_path, monkeypatch):
         yield c
 
 
+# 用途：通过客户端创建隔离的测试项目。
+# 参数：c/client 为测试客户端；返回：新项目ID。
 def project(c):
     return c.post('/api/projects', json={'name': '收口测试'}).json()['id']
 
 
+# 用例：旧任务写入口和旧待确认变更不能绕过统一任务模型。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_old_task_writes_and_pending_confirmation_are_closed(client):
     pid = project(client)
     operation = {'kind': 'task', 'data': {'title': '旧筹备'}}
@@ -31,6 +40,9 @@ def test_old_task_writes_and_pending_confirmation_are_closed(client):
     assert client.post(f'/api/projects/{pid}/changes/{cid}/reject').status_code == 200
 
 
+# 用例：任务共享资源记录，两种删除入口均保护已引用资源。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_resources_are_shared_with_tasks_and_guarded_at_both_delete_paths(client):
     pid, other = project(client), project(client)
     root = f'/api/projects/{pid}'
@@ -56,6 +68,9 @@ def test_resources_are_shared_with_tasks_and_guarded_at_both_delete_paths(client
     assert client.get(root).json()['planning_summary'] == {'total': 1, 'unfinished': 0, 'overdue': 0}
 
 
+# 用例：待确认草稿引用保护资源，但其建议不计入正式任务数量。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_pending_draft_protects_resource_and_is_not_counted(client):
     from backend.schemas.planning import PlanResult
     pid = project(client); root = f'/api/projects/{pid}'
@@ -72,6 +87,9 @@ def test_pending_draft_protects_resource_and_is_not_counted(client):
     assert client.get(root + '/planning').json()['draft']['id'] == 'existing-draft'
 
 
+# 用例：未被任务或草稿引用的资源允许删除。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_unreferenced_resource_can_be_deleted(client):
     pid = project(client); root = f'/api/projects/{pid}/resources'
     created = client.post(root, json={'revision': 0, 'resource': {'title': '临时资源'}})
@@ -82,6 +100,9 @@ def test_unreferenced_resource_can_be_deleted(client):
     assert deleted.json()['resources'] == []
 
 
+# 用例：生成上下文包含资源信息，但模型不能擅自确认资源已就绪。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_generation_receives_resources_without_marking_them_ready(client, monkeypatch):
     from backend.ai import planning as ai
     pid = project(client); root = f'/api/projects/{pid}'
@@ -106,6 +127,9 @@ def test_generation_receives_resources_without_marking_them_ready(client, monkey
     assert confirmed.json()['tasks'][0]['details']['resource_refs'][0]['record_id'] == rid
 
 
+# 用例：Agent工具调用同样遵守旧任务写入禁令。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_agent_cannot_bypass_old_task_write_guard(client):
     from backend.agent.tools import execute
     from backend.common.errors import BusinessError

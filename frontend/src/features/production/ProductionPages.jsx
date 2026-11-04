@@ -1,8 +1,13 @@
+// 提供制片业务页面、Agent 面板和通用记录编辑器，复用工作区状态及动作。
 import React from 'react';
 import { api } from '../../api/client';
 import { ImpactReport } from '../../AnalysisTools';
 import { kinds, visible, empty } from './constants';
 
+/**
+ * 参数 workspace 为制片 Hook 返回的状态及操作；返回当前业务页面 JSX。
+ * 按当前 revision 限制草稿确认，旧筹备任务草稿停止确认，日程任务由专用工作区维护。
+ */
 export function ProductionPages({ workspace }) {
   const { state, tab, pid, busy, act, load, setEditing, filter, setFilter, noticeDate, setNoticeDate, noticeNotes, setNoticeNotes, events, impact, resourceQuery, setResourceQuery, handleChange, analyze, remove, records, pending, shown } = workspace;
   return <>
@@ -21,6 +26,9 @@ export function ProductionPages({ workspace }) {
   </>;
 }
 
+/**
+ * 参数 workspace 提供消息、会话和提交状态；返回 Agent 对话面板 JSX，调用动作由工作区处理。
+ */
 export function ProductionAssistant({ workspace }) {
   const { tab, pid, busy, message, setMessage, chats, ask } = workspace;
   return <>
@@ -29,6 +37,9 @@ export function ProductionAssistant({ workspace }) {
   </>;
 }
 
+/**
+ * 参数 workspace 提供 editing、字段更新和保存回调；返回通用记录表单 JSX，无编辑记录时不展示。
+ */
 export function RecordEditor({ workspace }) {
   const { editing, setEditing, busy, saveRecord, records, field } = workspace;
   return <>

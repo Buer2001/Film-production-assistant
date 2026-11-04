@@ -1,6 +1,11 @@
+// 维护项目共用自定义文本列，单独保存字段设置并通知父层导航锁。
 import React, { useEffect, useState } from 'react';
 import { scriptApi } from './api';
 
+/**
+ * 参数：pid 为项目 ID，disabled 控制编辑；onChange 接收已保存字段，onDirtyChange/onBusyChange 通知状态。
+ * 返回字段设置 JSX；按 saved.revision 保存，既有列删除仅隐藏，已有场次内容保留。
+ */
 export default function CustomFields({ pid, disabled, onChange, onDirtyChange, onBusyChange }) {
   const [saved, setSaved] = useState(null), [fields, setFields] = useState([]);
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
@@ -20,9 +25,15 @@ export default function CustomFields({ pid, disabled, onChange, onDirtyChange, o
     }).catch(e => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [pid, onChange]);
+  /**
+   * 参数 index/key/value 指定字段设置项；只更新本地表单副本，等待显式保存。
+   */
   function update(index, key, value) {
     setFields(fields.map((field, i) => i === index ? { ...field, [key]: value } : field));
   }
+  /**
+   * 使用已读设置版本提交字段数组，成功后同步保存基线和父层列定义；失败时保留本地设置。
+   */
   async function save() {
     setBusy(true); setError('');
     try {
@@ -31,6 +42,9 @@ export default function CustomFields({ pid, disabled, onChange, onDirtyChange, o
     } catch (e) { setError(e.message); }
     finally { setBusy(false); }
   }
+  /**
+   * 需要时先确认丢弃本地修改，再读取最新字段及 revision，成功后同步父层。
+   */
   async function reload() {
     if (dirty && !window.confirm('重新加载字段设置会丢弃尚未保存的列名修改，继续吗？')) return;
     setBusy(true); setError('');

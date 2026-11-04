@@ -1,3 +1,4 @@
+# 测试职责：验证原文字数和项目自定义字段在保存、确认、导出及版本继承中的一致性。
 from io import BytesIO
 from zipfile import ZipFile
 import asyncio
@@ -8,6 +9,9 @@ from fastapi.testclient import TestClient
 from backend.main import create_app
 
 
+# 用途：创建使用临时SQLite数据库的测试应用，并由上下文管理应用生命周期。
+# 参数：tmp_path 为pytest临时目录；存在 monkeypatch 参数时用于隔离草稿、日志或模型依赖。
+# 产出：FastAPI TestClient；测试结束后退出客户端上下文，不连接正式数据库。
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
@@ -16,11 +20,15 @@ def client(tmp_path, monkeypatch):
         yield value
 
 
+# 用途：通过客户端创建隔离的测试项目。
+# 参数：c/client 为测试客户端；返回：新项目ID及剧本工作区接口前缀。
 def project(client):
     pid = client.post('/api/projects', json={'name': '字段测试'}).json()['id']
     return pid, f'/api/projects/{pid}/script-workspace'
 
 
+# 用例：字数统计忽略场标题和空白，支持中英文标题及空正文。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_count_body_ignores_header_and_whitespace():
     from backend.tools.script.text import scene_word_count
     assert scene_word_count('1、日 内 房间\n甲 A1。\n\t乙') == 5
@@ -30,6 +38,9 @@ def test_count_body_ignores_header_and_whitespace():
     assert scene_word_count('') == 0
 
 
+# 用例：自定义字段按项目隔离并校验版本，归档保留ID，非法名称和重复项被拒绝。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_project_fields_are_isolated_versioned_and_archived(client):
     pid, root = project(client)
     _, other = project(client)
@@ -50,6 +61,9 @@ def test_project_fields_are_isolated_versioned_and_archived(client):
     assert client.get('/api/projects/missing/script-workspace/fields').status_code == 404
 
 
+# 用例：自定义值经确认、导出和草稿删除后仍能从正式记录恢复。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_custom_values_survive_confirmation_export_and_removed_draft(client):
     pid, root = project(client)
     config = client.put(f'{root}/fields', json={'revision': 0, 'fields': [{'name': '车辆'}]}).json()
@@ -82,6 +96,9 @@ def test_custom_values_survive_confirmation_export_and_removed_draft(client):
     assert restored.status_code == 200
 
 
+# 用例：后台解析完成后保留人工自定义值，并根据原文更新字数。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_running_job_preserves_manual_custom_values_and_counts(client, monkeypatch):
     from backend.service.script import breakdown
     from backend.schemas.script import SaveInput
@@ -117,6 +134,9 @@ def test_running_job_preserves_manual_custom_values_and_counts(client, monkeypat
     assert client.put(f"{root}/{doc['id']}", json={'revision': final['revision'], 'scenes': [unknown]}).status_code == 422
 
 
+# 用例：不含自定义值的旧草稿仍可确认、重载、导出和再次保存。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_old_draft_without_custom_values_can_confirm_reload_and_save(client):
     pid, root = project(client)
     doc = client.post(root, json={'title': '旧版草稿', 'content': '1 内 日 房间\n人物走入。'}).json()
@@ -138,6 +158,8 @@ def test_old_draft_without_custom_values_can_confirm_reload_and_save(client):
     assert response.status_code == 200, response.text
 
 
+# 用例：变更导出包含道具名称，不泄露道具描述中的附加内容。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_change_export_does_not_include_prop_descriptions():
     from backend.tools.script.exporter import export_workbook
     before = {'action_props': [{'name': '手表', 'description': 'SECRET_OLD_ACTION'}]}
@@ -151,6 +173,9 @@ def test_change_export_does_not_include_prop_descriptions():
     assert '手表' in xml and '怀表' in xml and 'SECRET' not in xml
 
 
+# 用例：未变化场次在新版本中继承自定义值，历史版本仍禁止编辑。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_unchanged_script_version_inherits_custom_values(client, monkeypatch):
     from backend.service.script import breakdown
     from backend.service.script.jobs import ParseJobs

@@ -1,3 +1,4 @@
+# 文件职责：使用标准库生成拆解及变更说明两张工作表的 XLSX 字节内容。
 from io import BytesIO
 import json
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -9,6 +10,9 @@ COLUMNS = [('scene_number', '场号'), ('interior_exterior', '内外'), ('atmosp
            ('other_props', '其他道具'), ('notes', '备注')]
 
 
+# 用途：将单元格值转换为展示文本。
+# 参数：value 可为空、列表或其他值。
+# 返回及副作用：返回字符串；列表中的字典拼接非空值，None 转为空文本。
 def display(value):
     if value is None:
         return ''
@@ -17,6 +21,9 @@ def display(value):
     return str(value)
 
 
+# 用途：构建一张工作表的 OOXML。
+# 参数：rows 为按行组织的单元格值列表。
+# 返回及副作用：返回工作表 XML 字符串；计算 Excel 列号、过滤非法控制字符并转义，所有值用 inlineStr 防止公式执行。
 def sheet(rows):
     lines = []
     for n, values in enumerate(rows, 1):
@@ -33,6 +40,9 @@ def sheet(rows):
     return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>' + ''.join(lines) + '</sheetData></worksheet>'
 
 
+# 用途：将工作台文档打包为 XLSX。
+# 参数：doc 含剧本元数据、场次、差异及可选自定义字段。
+# 返回及副作用：返回 ZIP 格式的工作簿字节；包含启用自定义列、原文及顺序差异，不写磁盘。
 def export_workbook(doc):
     """只导出传入快照；用标准库生成基础 XLSX，不引入文件处理依赖。"""
     metadata = [doc['title'], f"剧本 V{doc['version_number']} {doc['version_label']}",
@@ -51,6 +61,9 @@ def export_workbook(doc):
         rows.append(values)
     changes = [['类型', '场号', '变化字段', '上一版', '本版']]
     for row in doc['comparison']['changed']:
+        # 用途：序列化某一侧实际变更字段。
+        # 参数：side 为 before 或 after，闭包 row 为差异项，fields 为启用自定义字段。
+        # 返回及副作用：返回 JSON 字符串；分别处理原文、顺序、道具名及自定义列展示名，不修改差异项。
         def changed_values(side):
             values = {}
             for key in row['fields']:
@@ -71,6 +84,7 @@ def export_workbook(doc):
         for row in doc['comparison'][kind]:
             changes.append([label, row['scene_number'], '', row['summary'] if kind == 'deleted' else '',
                             row['summary'] if kind == 'added' else ''])
+    # 未关联旧场次和待匹配新场次单独标识，不把尚未确认的对应关系直接导出为删除或新增。
     for row in doc['comparison'].get('unlinked', []):
         changes.append(['未关联旧场次（未确认删除）', row['scene_number'], '', row.get('summary', ''), ''])
     by_id = {row['id']: row for row in doc['scenes']}

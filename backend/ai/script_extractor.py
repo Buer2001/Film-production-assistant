@@ -1,3 +1,4 @@
+# 校验模型拆解工具调用和单场证据，失败交给业务编排隔离处理。
 from backend.ai.prompt_loader import load_prompt
 from backend.common.errors import BusinessError
 from backend.common.logging.validation import validation_paths
@@ -10,6 +11,7 @@ from backend.tools.script.evidence import locate
 
 
 
+# 按 reason、message 及可选场号和字段路径记录安全诊断，然后抛 422 业务异常；不返回。
 def reject(reason, message, scene_number='', paths=None, error_count=1):
     paths = paths or []
     logger.warning('extraction.rejected', extra={
@@ -20,6 +22,7 @@ def reject(reason, message, scene_number='', paths=None, error_count=1):
     raise BusinessError(422, f'{prefix}{message}{fields} [{reason}]')
 
 
+# 将 text 交给可注入 model，按 single_scene 和 scene_number 限定输入语义；返回通过 Extraction 校验的结果，结构异常统一拒绝。
 async def extract(text, model=None, *, single_scene=False, scene_number=''):
     prompt = load_prompt('script_extraction.txt')
     if single_scene:
@@ -30,6 +33,7 @@ async def extract(text, model=None, *, single_scene=False, scene_number=''):
         [{'role': 'system', 'content': prompt}, {'role': 'user', 'content': text}], tools)
     if not isinstance(response, dict):
         reject('response_invalid', '模型响应结构不正确', scene_number)
+    # 必须恰好调用一次 submit_breakdown；逐层校验类型，避免直接索引异常掩盖真实的响应问题。
     calls = response.get('tool_calls')
     if calls is None or calls == []:
         reject('tool_missing', '模型未调用 submit_breakdown 提交拆解', scene_number)
@@ -61,12 +65,14 @@ async def extract(text, model=None, *, single_scene=False, scene_number=''):
         reject(reason, message, scene_number, validation_paths(safe_errors), len(errors))
 
 
+# 接收包含 evidence 的 source 和可注入 model；返回校验后的单场拆解，场数或场号不一致时拒绝，并沿用原文全局位置。
 async def extract_scene(source, model=None):
     """单场独立校验；异常交给任务编排隔离，不影响其他场。"""
     raw = source['evidence']['text']
     parsed = await extract(raw, model, single_scene=True, scene_number=source.get('scene_number', ''))
     if len(parsed.scenes) != 1:
         reject('scene_count', '这一段未能拆为单场，请人工核对分场', source.get('scene_number', ''))
+    # 结构通过后再核对原文字面证据；结构合法不能替代来源校验。
     entries, warnings = locate(raw, parsed)
     entry = entries[0]
     number = source.get('scene_number', '')

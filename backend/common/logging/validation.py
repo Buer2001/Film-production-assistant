@@ -1,7 +1,9 @@
+# 从 Pydantic 错误提取有界安全摘要，不记录用户值或完整模型响应。
 """安全的校验摘要：只输出Schema字段、标准错误码和固定文案，不输出值/响应。"""
 from collections import Counter
 
 
+# 接收 errors 和样例上限 limit，返回去重字段路径；数组索引保留，非法标识替换为固定占位。
 def validation_paths(errors: list[dict], limit: int = 6) -> list[str]:
     if limit <= 0:
         return []
@@ -67,6 +69,7 @@ ERROR_LABELS = {
 }
 
 
+# 接收 Pydantic error、schema 和样例 limit，返回完整错误计数及有界安全样例；未知字段或错误码不会原样输出。
 def validation_diagnostics(error, schema, limit=6):
     """计数完整、样例有界；未知字段和自定义错误码都不直接输出。"""
     document = schema.model_json_schema()
@@ -78,6 +81,7 @@ def validation_diagnostics(error, schema, limit=6):
     for item in errors:
         code = item['type'] if item['type'] in ERROR_LABELS else 'validation_error'
         counts[code] += 1
+        # 样例满额后仍继续遍历计数，保证总数及错误类型统计完整。
         if len(samples) >= limit:
             continue
         safe = tuple(part if isinstance(part, int) or part in allowed else 'field' for part in item['loc'])
@@ -89,5 +93,6 @@ def validation_diagnostics(error, schema, limit=6):
             'field_name': '；'.join(dict.fromkeys(s['field'] for s in samples))}
 
 
+# 将 diagnostics 中的安全样例拼接成用户可读摘要，返回字符串。
 def diagnostic_summary(diagnostics):
     return '；'.join(f"{item['field']}：{item['reason']}" for item in diagnostics['validation_errors'])

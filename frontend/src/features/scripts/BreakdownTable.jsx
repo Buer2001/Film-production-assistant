@@ -1,3 +1,4 @@
+// 展示可筛选的逐场拆解宽表，把字段编辑及结构调整交给父层草稿管理。
 import React, { useState } from 'react';
 
 export const columns = [
@@ -8,6 +9,9 @@ export const columns = [
 ];
 const multiple = new Set(['cast', 'makeup_costume', 'action_props', 'other_props']);
 
+/**
+ * 参数：field 决定角色、妆造或道具结构，value 为数组，disabled 控制编辑，onChange 接收新数组；返回多条目编辑控件 JSX。
+ */
 function MultipleEditor({ field, value, disabled, onChange }) {
   const isMakeup = field === 'makeup_costume', isCast = field === 'cast';
   const nameKey = isMakeup ? 'character' : 'name';
@@ -31,6 +35,11 @@ function MultipleEditor({ field, value, disabled, onChange }) {
   </div>;
 }
 
+/**
+ * 参数：scenes/comparison 为场次及比较结果，selected/onSelect 控制原文选择，customFields 为自定义列。
+ * onChange/onAdd/onDelete/onMove/onRetry 处理字段、结构及重试；各 disabled 标志限制操作。返回拆解表 JSX。
+ * 筛选保留原场次下标，避免编辑搜索结果时写入错误场次。
+ */
 export default function BreakdownTable({ scenes, comparison, disabled, selected, onSelect, onChange, onAdd, onDelete, onMove, onRetry, retryDisabled, structuralDisabled, customFields = [] }) {
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all');
   const changed = new Set([...comparison.changed, ...comparison.added, ...comparison.pending].map(r => r.id));

@@ -1,3 +1,4 @@
+# 测试职责：验证计划生成和任务校验的安全错误说明、日志追踪及失败状态保护。
 import asyncio
 import json
 import logging
@@ -7,18 +8,27 @@ from backend.common.errors import BusinessError
 from backend.common.logging.config import JsonFormatter
 
 
+# 测试替身：保存预设模型结果，chat返回固定响应，不连接真实模型。
+# 构造参数：response 为待校验的完整响应对象。
 class Reply:
+    # 保存构造时传入的预设响应，供后续chat使用；不进行校验。
     def __init__(self, response):
         self.response = response
 
+    # 接收messages和tools以兼容真实客户端接口；返回预设响应，不产生网络请求。
     async def chat(self, messages, tools):
         return self.response
 
 
+# 用途：构造单个工具调用响应，不预先解析或校验参数。
+# 参数：arguments 为待校验工具参数，name 为工具名；返回包含 tool_calls 的字典。
 def call(arguments, name='submit_plan'):
     return {'tool_calls': [{'function': {'name': name, 'arguments': arguments}}]}
 
 
+# 用例：计划生成失败说明具体原因及字段，并屏蔽敏感内容。
+# 参数：response 为待验证的模拟模型响应；reason 为预期错误原因标识；field 为预期字段路径；caplog 为捕获日志的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 @pytest.mark.parametrize('response, reason, field', [
     (None, 'response_invalid', ''),
     ({'content': 'SECRET_RESPONSE'}, 'tool_missing', ''),
@@ -51,6 +61,9 @@ def test_specific_safe_planning_diagnostics(response, reason, field, caplog):
         assert value['validation_errors'][0]['reason']
 
 
+# 用例：诊断展示数量有限，同时保留全部错误数量统计。
+# 参数：caplog 为捕获日志的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_diagnostics_bounded_and_count_all_errors(caplog):
     payload = {'operations': [{'action': 'add', 'ref': f't{i}', 'task': {'title': 'SECRET_TITLE', 'phase': 'SECRET_PHASE', 'category': 'SECRET_CATEGORY'}} for i in range(10)], 'coverage': []}
     with caplog.at_level(logging.INFO, logger='film'):
@@ -64,6 +77,9 @@ def test_diagnostics_bounded_and_count_all_errors(caplog):
     assert 'SECRET' not in json.dumps(logged)
 
 
+# 用例：校验失败日志关联HTTP请求，保留项目原状态且不泄露字段值。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_validation_log_has_http_request_id_and_preserves_state(tmp_path, monkeypatch):
     from fastapi.testclient import TestClient
     from backend.main import create_app
@@ -88,6 +104,9 @@ def test_validation_log_has_http_request_id_and_preserves_state(tmp_path, monkey
     assert 'SECRET' not in json.dumps(rows)
 
 
+# 用例：后续任务校验输出安全的字段路径和原因，不包含原始敏感值。
+# 参数：caplog 为捕获日志的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_later_task_validation_has_safe_field_and_reason(caplog):
     from backend.service.planning import validate
     from backend.schemas.planning import TaskData
@@ -101,6 +120,9 @@ def test_later_task_validation_has_safe_field_and_reason(caplog):
     assert 'SECRET' not in error.value.detail + json.dumps(logged)
 
 
+# 用例：模型通信超时有明确状态和日志，远端异常文本不进入用户提示。
+# 参数：caplog 为捕获日志的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_transport_failure_is_logged_without_remote_body(caplog):
     import httpx
     class Timeout:

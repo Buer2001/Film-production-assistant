@@ -1,7 +1,10 @@
+# 测试职责：验证分场证据定位、草稿文件原子更新及单场模型提取边界。
 from concurrent.futures import ThreadPoolExecutor
 import pytest
 
 
+# 用例：分场保留原文位置，跳过演职人员表，并提示异常边界。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_split_scenes_preserves_original_and_skips_credits():
     from backend.tools.script.splitter import split_scenes
     text='《测试》\n1 内 日 车内\n晚来握着玉佩。\n2、出租屋 夜 内\n晚来拿起手机。\n3、演职人员表\n导演某某\n4 外 日 街头\n晚来走远。'
@@ -12,6 +15,8 @@ def test_split_scenes_preserves_original_and_skips_credits():
     assert result['warnings']
 
 
+# 用例：无法识别场次边界时保留完整原文，交由人工复核。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_unknown_boundaries_are_kept_for_manual_review():
     from backend.tools.script.splitter import split_scenes
     result=split_scenes('没有场次标题的一整段正文')
@@ -19,6 +24,9 @@ def test_unknown_boundaries_are_kept_for_manual_review():
     assert result['warnings']
 
 
+# 用例：并发更新不丢计数，异常标识不能越出草稿目录，序列化失败不损坏原文件。
+# 参数：tmp_path 为测试专用临时目录。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_draft_store_atomic_update_and_path_safety(tmp_path):
     from backend.tools.script.draft_store import DraftStore
     store=DraftStore(tmp_path)
@@ -37,6 +45,8 @@ def test_draft_store_atomic_update_and_path_safety(tmp_path):
         store.write('../project','../../script', {'bad':object()})
     assert store.load('../project','../../script') == before
 
+# 用例：单场模型提取保留全文中的原始证据偏移，不使用片段相对位置。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_single_scene_extraction_keeps_global_source_location():
     import asyncio, json
     from backend.ai.script_extractor import extract_scene

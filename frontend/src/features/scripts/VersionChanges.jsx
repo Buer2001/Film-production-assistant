@@ -1,7 +1,12 @@
+// 展示新版场次匹配、变化字段及上一版未关联场次，供人工核对。
 import React from 'react';
 import { columns } from './BreakdownTable';
 const labels = { ...Object.fromEntries(columns), custom_values: '自定义字段' };
 
+/**
+ * 参数：doc 含当前和上一版场次，disabled 控制修改，onChange 更新场次字段，onDeletedReview 更新删除核对状态。
+ * 返回版本对比 JSX；匹配选择会同步更新旧场次引用、匹配状态和核对标记，未匹配项保留待确认。
+ */
 export default function VersionChanges({ doc, disabled, onChange, onDeletedReview }) {
   if (!doc.previous_script_id) return null;
   const changes = doc.comparison;

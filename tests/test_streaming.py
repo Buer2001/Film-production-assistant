@@ -1,9 +1,13 @@
+# 测试职责：验证后台拆解、SSE快照、文件草稿和正式记录之间的隔离及并发保存保护。
 import asyncio
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import create_app
 
 
+# 用例：流式拆解先写文件草稿并推送进度，确认前不写正式场次。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_streaming_drafts_do_not_enter_formal_scenes(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
     async def extract(source, model=None):
@@ -26,6 +30,9 @@ def test_streaming_drafts_do_not_enter_formal_scenes(tmp_path, monkeypatch):
         assert final['progress']['state'] == 'review'
 
 
+# 用例：单场解析失败不影响其他场次，人工处理或排除后可明确确认。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_failure_isolated_then_explicit_manual_or_excluded_confirmation(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
     from backend.service.script.jobs import ParseJobs
@@ -69,6 +76,9 @@ def test_failure_isolated_then_explicit_manual_or_excluded_confirmation(tmp_path
         assert again.json()['revision'] == confirmed.json()['revision']
 
 
+# 用例：模型调用期间人工保存的字段受保护，迟到结果只更新允许内容。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_save_during_model_call_preserves_manual_fields_and_late_result(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
     from backend.service.script.jobs import ParseJobs
@@ -108,6 +118,9 @@ def test_save_during_model_call_preserves_manual_fields_and_late_result(tmp_path
         asyncio.run(scenario())
 
 
+# 用例：服务重启将运行中草稿标记为中断，保留已完成场次。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_restart_marks_running_draft_interrupted_and_preserves_finished_scenes(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
     from backend.service.script import breakdown
@@ -128,6 +141,9 @@ def test_restart_marks_running_draft_interrupted_and_preserves_finished_scenes(t
         assert result['scenes'][1]['parse_status'] == 'pending'
 
 
+# 用例：重试仅处理失败场次，已排除场次不会再次发给模型。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_retry_only_failed_scene_and_excluded_scene_is_not_requested(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
     from backend.service.script.jobs import ParseJobs
@@ -176,6 +192,9 @@ def test_retry_only_failed_scene_and_excluded_scene_is_not_requested(tmp_path, m
         asyncio.run(scenario())
 
 
+# 用例：文件保存或数据库确认失败可重试，且不产生额外版本漂移。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_file_save_and_sql_confirm_failures_can_retry_without_revision_drift(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
     from backend.service.script import breakdown
@@ -231,6 +250,9 @@ def test_file_save_and_sql_confirm_failures_can_retry_without_revision_drift(tmp
             assert repaired['revision'] == saved['revision'] + 1
 
 
+# 用例：编辑已确认剧本时正式记录保持原样，直到再次确认才替换。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_edit_confirmed_script_keeps_formal_rows_until_second_confirmation(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
     async def extractor(source, model=None):
@@ -258,6 +280,9 @@ def test_edit_confirmed_script_keeps_formal_rows_until_second_confirmation(tmp_p
             assert scenes.list_for_script(session, doc['id'])[0].summary == '人工新概述'
 
 
+# 用例：延迟的确认回执修复不能覆盖后来保存的人工内容。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_late_confirmation_receipt_repair_cannot_overwrite_new_manual_save(tmp_path, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
     from threading import Event, current_thread
@@ -315,6 +340,9 @@ def test_late_confirmation_receipt_repair_cannot_overwrite_new_manual_save(tmp_p
         assert late_result['scenes'][0]['summary'] == '刚保存的人工修改'
 
 
+# 用例：完成时的SSE快照包含最新差异及人工待补提示。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_completed_sse_snapshot_has_current_comparison_and_manual_missing_hints(tmp_path, monkeypatch):
     import json
     from backend.service.script import breakdown

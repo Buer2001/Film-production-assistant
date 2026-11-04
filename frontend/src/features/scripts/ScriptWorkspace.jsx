@@ -1,3 +1,4 @@
+// 组合剧本导入、拆解编辑、原文核对、版本对比和确认入口。
 import React, { useEffect, useState } from 'react';
 import useScriptDraft from './useScriptDraft';
 import { scriptApi } from './api';
@@ -14,6 +15,10 @@ const blank = () => ({ id: crypto.randomUUID(), local_id: crypto.randomUUID(), s
   action_props: [], other_props: [], custom_values: {}, word_count: null, notes: '', previous_scene_id: null, match_status: 'first',
   parse_status: 'succeeded', resolution: 'manual', parse_error: '', change_reviewed: false, evidence: {}, extracted_data: {}, review_issues: [] });
 
+/**
+ * 参数：pid 为项目 ID，onLockChange 向外通知导航锁；返回剧本工作区 JSX。
+ * 草稿状态由专用 Hook 管理，自定义字段另存；未保存内容阻止切换版本和导出，确认前检查解析和核对状态。
+ */
 export default function ScriptWorkspace({ pid, onLockChange }) {
   const [customFields, setCustomFields] = useState([]), [fieldsDirty, setFieldsDirty] = useState(false);
   const [fieldsBusy, setFieldsBusy] = useState(false), [draftLocked, setDraftLocked] = useState(false);

@@ -22,8 +22,10 @@ from backend.router.resource import router as resource_router
 from backend.router.person import router as person_router
 from backend.router.preparation import router as preparation_router
 from backend.common.database.migrations.preparation_v3 import upgrade as upgrade_preparation
+from backend.common.database.migrations.shooting_v4 import upgrade as upgrade_shooting
+from backend.router.shooting import router as shooting_router
 
-routers = (preparation_router, person_router, resource_router, planning_router, script_router, health_router, project_router, change_router, notice_router,
+routers = (shooting_router, preparation_router, person_router, resource_router, planning_router, script_router, health_router, project_router, change_router, notice_router,
            event_router, legacy_script_router, impact_router, agent_router)
 
 
@@ -39,6 +41,7 @@ def create_app(database_url=None):
             upgrade_scripts(engine)
             upgrade_planning(engine)
             upgrade_preparation(engine)
+            upgrade_shooting(engine)
             from backend.service.script.jobs import ParseJobs
             app.state.parse_jobs = ParseJobs(app.state.sessions)
             yield

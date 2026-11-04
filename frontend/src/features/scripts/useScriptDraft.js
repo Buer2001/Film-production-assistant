@@ -1,6 +1,12 @@
+// 管理剧本文件草稿、SSE 逐场结果和串行自动保存，保护人工输入。
 import { useEffect, useRef, useState } from 'react';
 import { scriptApi } from './api';
 
+/**
+ * 参数：pid 为项目 ID，onLockChange 接收未保存或处理中的导航锁。
+ * 返回版本列表、当前草稿、编辑选择、连接状态、保存状态及对应操作函数。
+ * progress.sequence 判断进度先后，revision 用于保存冲突校验，epoch 跟踪本地输入；三者职责独立。
+ */
 export default function useScriptDraft(pid, onLockChange) {
   const [versions, setVersions] = useState([]), [doc, setDoc] = useState(null);
   const [selected, setSelected] = useState(null), [importing, setImporting] = useState(false);
@@ -13,6 +19,9 @@ export default function useScriptDraft(pid, onLockChange) {
   const stream = useRef(null), reconnectTimer = useRef(null), streamGeneration = useRef(0);
   const [connection, setConnection] = useState('closed');
   // 用户修改按字段保留，后台逐场结果仍可更新未编辑的字段。
+  /**
+   * 参数 value 为服务端草稿快照；忽略其他版本或旧进度，将人工字段、删除记录及新增行覆盖到服务端结果上。
+   */
   function receive(value) {
     const local = current.current;
     if (!local || local.id !== value.id) return;
@@ -28,6 +37,9 @@ export default function useScriptDraft(pid, onLockChange) {
     install({ ...value, revision: Math.max(value.revision, local.revision), scenes: rows,
       ...(changed.current ? { deleted_reviewed: local.deleted_reviewed } : {}) });
   }
+  /**
+   * 关闭已有连接，从最近进度序号连接 SSE；只订阅运行中的可写草稿，代次标记忽略旧连接消息，失败后三秒重连。
+   */
   function connect() {
     stream.current?.close(); clearTimeout(reconnectTimer.current);
     const value = current.current, ticket = ++streamGeneration.current;
@@ -60,6 +72,9 @@ export default function useScriptDraft(pid, onLockChange) {
     onLockChange?.(dirty || busy || saveState === '保存中');
   }, [dirty, busy, saveState, onLockChange]);
   // ref 保存最新草稿；自动保存串行执行，不让较慢响应覆盖后来输入。
+  /**
+   * 参数 value 为待展示草稿；同步 ref 和 React 状态，切换版本时清空旧版本人工字段覆盖及删除标记。
+   */
   function install(value) {
     if (current.current?.id !== value.id) { edits.current.clear(); pendingEdits.current.clear(); removed.current.clear(); }
     current.current = value; setDoc(value);
@@ -85,7 +100,14 @@ export default function useScriptDraft(pid, onLockChange) {
     return () => window.removeEventListener('beforeunload', warn);
   }, []);
 
+  /**
+   * 解除失败阻塞后重试自动保存；返回 persist 的成功标记 Promise。
+   */
   function retrySave() { blocked.current = false; return persist(); }
+  /**
+   * 串行保存当前文件草稿快照及本次 edited_fields；返回是否成功的 Promise。
+   * 保存期间新增输入继续保留，较旧响应不回退进度；失败后暂停自动保存并保留本地内容，等待显式恢复。
+   */
   async function persist() {
     clearTimeout(timer.current);
     if (!changed.current || saving.current || blocked.current || !current.current) return false;
@@ -122,6 +144,10 @@ export default function useScriptDraft(pid, onLockChange) {
       if (alive.current && changed.current && !blocked.current) timer.current = setTimeout(persist, 600);
     }
   }
+  /**
+   * 参数 update 为基于当前草稿产生新草稿的函数；记录字段改动及删除，清除确认状态并延迟触发保存。
+   * 历史只读版本不接受修改；失败阻塞未解除时继续保留输入，但不重复自动请求。
+   */
   function mutate(update) {
     if (!current.current || current.current.read_only) return;
     epoch.current++; changed.current = true; setDirty(true);
@@ -145,17 +171,26 @@ export default function useScriptDraft(pid, onLockChange) {
     clearTimeout(timer.current);
     if (!blocked.current) timer.current = setTimeout(persist, 800);
   }
+  /**
+   * 参数 index/field/value 为场次下标、字段及新值；通过 mutate 更新，并使受影响的场次或删除核对标记失效。
+   */
   function updateScene(index, field, value) {
     mutate(valueDoc => ({ ...valueDoc, scenes: valueDoc.scenes.map((s, i) =>
       i === index ? { ...s, [field]: value, ...(field === 'change_reviewed' ? {} : { change_reviewed: false }) } : s),
       ...(['previous_scene_id', 'match_status'].includes(field) ? { deleted_reviewed: false } : {}) }));
   }
+  /**
+   * 把当前本地草稿下载为 JSON 备份，随后释放临时对象 URL；不请求服务端。
+   */
   function backupDraft() {
     // 保存失败时可先下载本地内容，再决定是否重新加载；绝不直接丢弃输入。
     const blob = new Blob([JSON.stringify(current.current, null, 2)], { type: 'application/json;charset=utf-8' });
     const url = URL.createObjectURL(blob), link = document.createElement('a');
     link.href = url; link.download = 'breakdown-local-backup.json'; link.click(); URL.revokeObjectURL(url);
   }
+  /**
+   * 经用户确认后读取服务端版本，清空本地覆盖及保存阻塞；失败时由 run 显示错误。
+   */
   async function reloadSaved() {
     if (!window.confirm('重新加载会丢弃未保存的本地修改，建议先下载草稿备份。继续吗？')) return;
     await run(async () => {
@@ -164,11 +199,17 @@ export default function useScriptDraft(pid, onLockChange) {
       setDirty(false); setSaveState('已保存'); setAcceptMissing(false);
     });
   }
+  /**
+   * 参数 action 为异步操作；统一设置忙碌状态和错误，卸载后不再回写本函数的错误和忙碌状态；不取消 action 本身。
+   */
   async function run(action) {
     setBusy(true); setError('');
     try { await action(); } catch (e) { if (alive.current) setError(e.message); }
     finally { if (alive.current) setBusy(false); }
   }
+  /**
+   * 参数 sid 为目标版本 ID；存在未保存内容或保存请求时拒绝切换，以请求代次避免慢响应覆盖新选择。
+   */
   async function switchVersion(sid) {
     if (changed.current || saving.current) { setError('请先保存当前修改，再切换版本。'); return; }
     const ticket = ++generation.current;
@@ -179,6 +220,9 @@ export default function useScriptDraft(pid, onLockChange) {
       }
     });
   }
+  /**
+   * 参数 value 为草稿快照；按文件 revision 启动解析，失败时重新读取服务端状态后继续抛出错误。
+   */
   async function parse(value) {
     try {
       const result = await scriptApi.parse(pid, value.id, value.revision);
@@ -188,6 +232,9 @@ export default function useScriptDraft(pid, onLockChange) {
       throw e;
     }
   }
+  /**
+   * 参数 sceneId 为失败场次 ID；当前修改保存完成后才按最新 revision 请求单场重试。
+   */
   async function retryScene(sceneId) {
     if (changed.current || saving.current) { setError('请等待当前修改保存后重试。'); return; }
     await run(async () => receive(await scriptApi.retry(pid, current.current.id, sceneId, current.current.revision)));

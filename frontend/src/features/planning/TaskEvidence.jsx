@@ -1,7 +1,12 @@
+// 以模态弹窗只读回看任务关联的已确认剧本拆解和原文依据。
 import React, { useEffect, useRef, useState } from 'react';
 import EvidencePanel from '../scripts/EvidencePanel';
 import { planningApi } from './api';
 
+/**
+ * 参数：pid/task/sceneRef 定位接口，trigger 为关闭后恢复焦点的元素，onClose 关闭弹窗；返回 dialog JSX。
+ * 关联或重试次数变化时重新请求，清理标记阻止旧响应回写；卸载时关闭原生弹窗并恢复焦点。
+ */
 export default function TaskEvidence({ pid, task, sceneRef, trigger, onClose }) {
   const dialog = useRef(null);
   const [data, setData] = useState(null), [error, setError] = useState(''), [attempt, setAttempt] = useState(0);

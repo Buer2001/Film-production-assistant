@@ -1,3 +1,4 @@
+# 测试职责：验证旧空占位场次可解析，且人工内容和并发新增草稿始终受保护。
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import create_app
@@ -6,6 +7,9 @@ from backend.schemas.script import SceneData
 from backend.dao.script.scene import list_for_script
 
 
+# 用途：构造版本为3的旧剧本及带人工字段标记的占位场次。
+# 参数：client 为客户端，summary/status 控制摘要和剧本状态；返回接口前缀、剧本ID、场次ID。
+# 副作用：只向测试数据库提交种子数据，用于复现旧数据的解析保护。
 def seed(client, *, summary='', status='review'):
     pid=client.post('/api/projects',json={'name':'历史占位恢复'}).json()['id']
     root=f'/api/projects/{pid}/script-workspace'
@@ -20,6 +24,9 @@ def seed(client, *, summary='', status='review'):
     return root,doc['id'],original
 
 
+# 用例：旧空占位场次允许启动解析，但开始解析时保留已有正式数据。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_empty_legacy_placeholder_allows_parse_without_destroying_existing_data(tmp_path,monkeypatch):
     monkeypatch.setenv('DRAFT_DIR',str(tmp_path/'drafts'))
     async def extracted(source,model=None):
@@ -42,6 +49,9 @@ def test_empty_legacy_placeholder_allows_parse_without_destroying_existing_data(
             assert len(rows)==1 and rows[0].id==original and rows[0].summary==''
 
 
+# 用例：含人工内容或已确认的旧场次不能被重新解析覆盖。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具；summary 为旧场次摘要；status 为旧场次状态。
+# 返回：无；使用断言或预期异常检查上述行为。
 @pytest.mark.parametrize('summary,status',[('已经填写的人工内容','review'),('','confirmed')])
 def test_meaningful_or_confirmed_rows_cannot_be_overwritten(tmp_path,monkeypatch,summary,status):
     monkeypatch.setenv('DRAFT_DIR',str(tmp_path/'drafts'))
@@ -54,6 +64,9 @@ def test_meaningful_or_confirmed_rows_cannot_be_overwritten(tmp_path,monkeypatch
         with client.app.state.sessions() as session:
             assert session.get(SceneBreakdown,original).summary==summary
 
+# 用例：初次检查后刚保存的人工草稿仍受保护，解析启动不能覆盖它。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_parse_does_not_overwrite_a_draft_created_after_initial_check(tmp_path,monkeypatch):
     from copy import deepcopy
     from backend.service.script import breakdown

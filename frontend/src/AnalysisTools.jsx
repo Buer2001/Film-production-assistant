@@ -1,5 +1,10 @@
+// 展示只读影响分析结果，并提示分析依据是否落后于项目版本。
 import React from 'react';
 
+/**
+ * 参数：result 为影响分析结果，revision 为当前项目版本；返回报告 JSX，无结果时返回 null。
+ * 仅展示关联记录、建议和通告提醒，不执行任何正式修改。
+ */
 export function ImpactReport({ result, revision }) {
   if (!result) return null;
   return <section aria-live="polite"><h2>影响分析结果</h2>

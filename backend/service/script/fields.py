@@ -1,3 +1,4 @@
+# 文件职责：管理项目自定义列；删除仅归档，保留历史场次字段值。
 from backend.common.database.base import uid
 from backend.common.errors import BusinessError
 from backend.dao.script import fields as dao
@@ -6,6 +7,9 @@ from backend.dao import project
 RESERVED = {'场号', '内外', '气氛', '页数', '字数', '场景', '内容', '角色', '妆造', '戏用道具', '其他道具', '备注'}
 
 
+# 用途：读取项目自定义列配置。
+# 参数：session/pid 为会话及项目 ID。
+# 返回及副作用：返回现有配置或 revision=0 的空配置；项目不存在抛 BusinessError。
 def get(session, pid):
     if project.get_project(session, pid) is None:
         raise BusinessError(404, '项目不存在')
@@ -13,6 +17,9 @@ def get(session, pid):
     return row.data if row else {'revision': 0, 'fields': []}
 
 
+# 用途：按配置修订号保存字段列表。
+# 参数：session/pid 为会话及项目，request 含 revision 和字段定义。
+# 返回及副作用：项目锁内验证名称、ID 和数量，归档移除项后提交并返回新配置；不合法或冲突抛 BusinessError。
 def save(session, pid, request):
     if not project.lock_project(session, pid):
         raise BusinessError(404, '项目不存在')

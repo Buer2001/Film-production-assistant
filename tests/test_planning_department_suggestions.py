@@ -1,9 +1,13 @@
+# 测试职责：验证部门补全只生成受控建议，保留人工数据并限制单次处理任务量。
 import asyncio
 import json
 import pytest
 from test_planning import client, project, task, settings, mock_model, fake_result
 
 
+# 用途：用固定部门建议替换模型，并可在响应前检查或扰动请求上下文。
+# 参数：monkeypatch 为替换工具，assignments 为建议列表，inspect 为可选异步检查函数。
+# 返回：无；验证请求工具为submit_departments，不访问真实模型。
 def department_model(monkeypatch, assignments, inspect=None):
     from backend.ai.client import ModelClient
     async def chat(self, messages, tools):
@@ -14,10 +18,15 @@ def department_model(monkeypatch, assignments, inspect=None):
     monkeypatch.setattr(ModelClient, 'chat', chat)
 
 
+# 用途：组装部门补全测试建议，可附加字段构造合法或越界案例。
+# 参数：ref 为任务引用，department 为建议部门，extra 为附加字段；返回建议字典。
 def suggestion(ref, department='摄影组', **extra):
     return {'ref': ref, 'department': department, 'collaborating_departments': ['制片组'], 'reason': '任务涉及摄影器材核对', **extra}
 
 
+# 用例：部门建议仅进入草稿，保留人工人员、部门和原有任务数据。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_formal_department_suggestions_are_only_drafts_and_preserve_manual_data(client, monkeypatch):
     _, root = project(client)
     original = task(client, root, 0, '确认摄影器材单', planned_start='2026-11-03', planned_end='2026-11-05',
@@ -45,6 +54,9 @@ def test_formal_department_suggestions_are_only_drafts_and_preserve_manual_data(
     assert confirmed.json()['tasks'][1]['details']['department'] == '人工主责组'
 
 
+# 用例：部门补全只补待确认草稿缺失项，保留原建议、问题和覆盖信息。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_pending_draft_is_supplemented_not_replaced(client, monkeypatch):
     _, root = project(client); settings(client, root)
     result = fake_result()
@@ -63,6 +75,9 @@ def test_pending_draft_is_supplemented_not_replaced(client, monkeypatch):
     assert data['draft']['result']['operations'][1]['task']['details']['dependencies'] == before['draft']['result']['operations'][1]['task']['details']['dependencies']
 
 
+# 用例：未知、重复、缺漏引用或越界字段的部门建议被拒绝且不改原状态。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具；kind 为参数化测试的场景类型。
+# 返回：无；使用断言或预期异常检查上述行为。
 @pytest.mark.parametrize('kind', ['unknown', 'duplicate', 'missing', 'extra_fields'])
 def test_bad_suggestions_preserve_plan_and_draft(client, monkeypatch, kind):
     _, root = project(client)
@@ -75,6 +90,9 @@ def test_bad_suggestions_preserve_plan_and_draft(client, monkeypatch, kind):
     assert client.get(root).json() == before
 
 
+# 用例：部门生成期间发生人工修改时拒绝过期结果，保留新任务。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_departments_generation_conflict_preserves_newer_manual_edit(client, monkeypatch):
     _, root = project(client)
     before = task(client, root, 0)
@@ -87,6 +105,9 @@ def test_departments_generation_conflict_preserves_newer_manual_edit(client, mon
     assert len(after['tasks']) == 2 and after['draft'] is None
 
 
+# 用例：没有待补部门的任务时直接拒绝请求，不访问模型。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_no_missing_departments_does_not_call_model(client, monkeypatch):
     _, root = project(client)
     task(client, root, 0, details={'department': '摄影组'})
@@ -97,6 +118,9 @@ def test_no_missing_departments_does_not_call_model(client, monkeypatch):
     assert response.status_code == 422
 
 
+# 用例：模型无法确定部门时保留空值并生成待确认问题。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_uncertain_department_remains_unassigned_and_is_question(client, monkeypatch):
     _, root = project(client)
     before = task(client, root, 0)
@@ -110,6 +134,9 @@ def test_uncertain_department_remains_unassigned_and_is_question(client, monkeyp
     assert data['tasks'][0]['details']['department'] == ''
 
 
+# 用例：部门建议按有限批量处理，同时报告未处理任务数量。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_department_batches_are_bounded_without_losing_remaining_tasks(client, monkeypatch):
     from sqlalchemy import select
     from backend.models.planning import ProjectPlan, ProjectTask

@@ -1,3 +1,4 @@
+# 文件职责：兼容旧剧本入口：解析结果保存为事件，另行转换为通用变更草稿。
 from backend.ai.legacy_extractor import extract_script
 from backend.schemas.legacy_script import Strict, ScriptInput, Scene, Extraction
 from backend.common.errors import BusinessError
@@ -10,6 +11,9 @@ from backend.dao.project import lock_project
 from backend.tools.normalization import normalized, unique
 
 
+# 用途：调用旧提取器并保存解析事件。
+# 参数：s/pid 为会话及项目，request 含原文、来源和基准版本。
+# 返回及副作用：返回解析事件数据；调用模型前后均校验版本，冲突抛 BusinessError；写事件并提交，不写正式场次。
 async def parse_script(s, pid, request):
     if get_project(s, pid).revision != request.base_revision:
         raise BusinessError(409, '项目版本已变化，请刷新后重新解析')
@@ -27,6 +31,9 @@ async def parse_script(s, pid, request):
     return {'id': event.id, **event.data}
 
 
+# 用途：将旧解析事件幂等转换为待确认变更。
+# 参数：s/pid/eid 为会话、项目及解析事件 ID。
+# 返回及副作用：项目锁内创建草稿、回填事件 change_id 后提交并返回草稿；对象或版本不合法抛 BusinessError。
 def script_draft(s, pid, eid):
     # 复用项目行锁，同一解析记录只转换为一个草稿。
     event = get_event(s, eid)
@@ -51,6 +58,9 @@ def script_draft(s, pid, eid):
     return change
 
 
+# 用途：读取旧入口解析历史。
+# 参数：s/pid 为会话及项目 ID。
+# 返回及副作用：返回按时间倒序的至多 20 条解析事件；项目不存在抛 BusinessError，不提交。
 def script_history(s, pid):
     get_project(s, pid)
     return [{'id': event.id, **event.data} for event in sorted(list_events(s, pid),

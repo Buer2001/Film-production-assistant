@@ -1,3 +1,4 @@
+# 测试职责：验证字数的正式存储和离线迁移，包括备份、幂等及失败补偿。
 import json
 import pytest
 
@@ -8,6 +9,9 @@ from backend.models.script import SceneBreakdown
 from backend.dao.script import scene as dao
 
 
+# 用例：正式存储字数根据原文计算，不接受伪造字数并移除旧页数字段。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_confirmation_storage_uses_calculated_word_count(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
     monkeypatch.setenv('LOG_DIR', str(tmp_path / 'logs'))
@@ -35,6 +39,9 @@ def test_confirmation_storage_uses_calculated_word_count(tmp_path, monkeypatch):
             assert 'page_count' not in dao.as_dict(record)
 
 
+# 用例：字数迁移先备份原始数据，保留人工自定义值且重复执行无新增变更。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_migration_backs_up_and_is_idempotent(tmp_path, monkeypatch):
     from scripts.migrate_word_counts import migrate
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
@@ -71,12 +78,17 @@ def test_migration_backs_up_and_is_idempotent(tmp_path, monkeypatch):
             assert migrate(session, store, tmp_path / 'second') == {'database_rows': 0, 'draft_files': 0}
 
 
+# 用例：模型提取Schema不要求页数或字数，统计由程序完成。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_model_schema_does_not_request_page_or_word_count():
     from backend.schemas.script import ExtractedScene
     fields = ExtractedScene.model_json_schema()['properties']
     assert 'page_count' not in fields and 'word_count' not in fields
 
 
+# 用例：字数迁移失败时回滚数据库并尝试恢复全部已写草稿。
+# 参数：tmp_path 为测试专用临时目录；monkeypatch 为临时替换配置或依赖的pytest工具；failure 为注入的迁移故障阶段。
+# 返回：无；使用断言或预期异常检查上述行为。
 @pytest.mark.parametrize('failure', ['write', 'commit', 'restore'])
 def test_migration_failure_rolls_back_and_attempts_every_restore(tmp_path, monkeypatch, failure):
     from scripts.migrate_word_counts import migrate

@@ -18,6 +18,9 @@ def list_people(s, pid):
 
 # 检查 pid 下 person_id 是否被任务、待审草稿或资源联系人引用，返回布尔值；按项目到计划顺序加锁，调用方须先领取项目版本。
 def referenced(s, pid, person_id):
+    from backend.dao.shooting import referenced as shooting_referenced
+    if shooting_referenced(s, pid, 'person_ids', person_id):
+        return True
     # 调用前已领取项目版本；保持项目→计划锁顺序，覆盖正式和待审资料。
     plan = s.scalar(select(ProjectPlan).where(ProjectPlan.project_id == pid).with_for_update().execution_options(populate_existing=True))
     details = []

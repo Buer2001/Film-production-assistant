@@ -1,3 +1,7 @@
+# 文件职责：检查通用拍摄安排的条件缺失、旧筹备记录状态及资源时间冲突。
+# 用途：检查安排就绪程度、跨日和资源占用重叠。
+# 参数：records 为含 kind、id、data 的通用记录列表。
+# 返回及副作用：返回 unknown、readiness、conflict 提醒；仅对同一天且有开始时刻的安排比较占用，不修改输入。
 def check_schedule(records):
     warnings = []
     slots = [r for r in records if r['kind'] == 'schedule']

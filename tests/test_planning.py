@@ -1,3 +1,4 @@
+# 测试职责：验证日程任务、模型建议草稿、版本冲突、确认事务及正式剧本依据读取。
 import json
 import asyncio
 import pytest
@@ -5,6 +6,9 @@ from fastapi.testclient import TestClient
 from backend.main import create_app
 
 
+# 用途：创建使用临时SQLite数据库的测试应用，并由上下文管理应用生命周期。
+# 参数：tmp_path 为pytest临时目录；存在 monkeypatch 参数时用于隔离草稿、日志或模型依赖。
+# 产出：FastAPI TestClient；测试结束后退出客户端上下文，不连接正式数据库。
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
@@ -12,17 +16,25 @@ def client(tmp_path, monkeypatch):
         yield c
 
 
+# 用途：通过客户端创建隔离的测试项目。
+# 参数：c/client 为测试客户端；返回：新项目ID及日程接口前缀。
 def project(c):
     pid = c.post('/api/projects', json={'name': '日程测试'}).json()['id']
     return pid, f'/api/projects/{pid}/planning'
 
 
+# 用途：通过任务接口按给定版本创建测试任务，失败时输出HTTP响应。
+# 参数：c 为客户端，root 为日程路径，revision 为版本，title/data 为任务字段。
+# 返回：保存后的日程响应字典。
 def task(c, root, revision, title='清点器材', **data):
     response = c.post(root + '/tasks', json={'revision': revision, 'task': {'title': title, **data}})
     assert response.status_code == 200, response.text
     return response.json()
 
 
+# 用例：人工任务和设置可保存，旧版本写入被拒绝，跨项目任务互相隔离。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_manual_tasks_settings_conflict_and_isolation(client):
     _, root = project(client)
     initial = client.get(root).json()
@@ -40,6 +52,9 @@ def test_manual_tasks_settings_conflict_and_isolation(client):
     assert client.get(root).json()['tasks'][0]['title'] == '清点器材'
 
 
+# 用例：依赖环和不合法取消被拒绝，局部修改保留未提交字段。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_dependencies_cycles_cancellation_and_patch_preserves_fields(client):
     _, root = project(client)
     a = task(client, root, 0)['tasks'][0]['id']
@@ -54,6 +69,8 @@ def test_dependencies_cycles_cancellation_and_patch_preserves_fields(client):
     assert client.patch(root + '/tasks/' + b, json={'revision': 3, 'changes': {'title': '   '}}).status_code == 422
 
 
+# 用途：构造包含两项新增任务、依赖关系、待确认问题和检查覆盖的模拟计划。
+# 参数：无；返回符合测试需要的建议字典，不执行模型调用。
 def fake_result():
     from backend.ai.planning import checklist
     return {'operations': [
@@ -63,6 +80,8 @@ def fake_result():
         'coverage': [{'check_id': x['id'], 'status': 'unknown', 'reason': '需要制片确认', 'task_refs': []} for x in checklist()]}
 
 
+# 用途：为新日程保存固定拍摄日期、收尾日期和项目背景。
+# 参数：c 为客户端，root 为日程路径；返回更新后的日程响应字典。
 def settings(c, root):
     response = c.put(root + '/settings', json={'revision': 0, 'settings': {
         'shoot_start': '2026-11-05', 'shoot_end': '2026-11-07', 'close_date': '2026-11-10', 'context': '租用器材'}})
@@ -70,6 +89,8 @@ def settings(c, root):
     return response.json()
 
 
+# 用途：替换模型chat方法，使其以submit_plan工具调用返回指定建议。
+# 参数：monkeypatch 为替换工具，result 为建议数据；返回：无，不调用真实模型。
 def mock_model(monkeypatch, result):
     from backend.ai.client import ModelClient
     async def chat(self, messages, tools):
@@ -77,6 +98,9 @@ def mock_model(monkeypatch, result):
     monkeypatch.setattr(ModelClient, 'chat', chat)
 
 
+# 用例：生成只创建建议草稿，确认映射临时引用且可幂等重试。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_generate_confirm_id_mapping_idempotency_and_later_manual_change(client, monkeypatch):
     _, root = project(client); settings(client, root)
     mock_model(monkeypatch, fake_result())
@@ -94,6 +118,9 @@ def test_generate_confirm_id_mapping_idempotency_and_later_manual_change(client,
     assert again.status_code == 200 and len(again.json()['tasks']) == 3
 
 
+# 用例：覆盖检查失败或生成期间版本变化时，保留已有任务和草稿。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_bad_coverage_and_stale_generation_preserve_state(client, monkeypatch):
     _, root = project(client); settings(client, root)
     mock_model(monkeypatch, fake_result())
@@ -111,12 +138,18 @@ def test_bad_coverage_and_stale_generation_preserve_state(client, monkeypatch):
     assert client.get(root).json()['draft']['id'] == good['draft']['id']
 
 
+# 用例：任务不得引用其他项目的剧本场次。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_cross_project_scene_ref_rejected(client):
     _, root = project(client)
     response = client.post(root + '/tasks', json={'revision': 0, 'task': {'title': '申请场地', 'details': {'scene_refs': [{'script_id': 'foreign', 'scene_id': 'foreign'}]}}})
     assert response.status_code == 422
 
 
+# 用例：模型补充的约束保持待确认，不能直接成为已确认事实。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_model_cannot_mark_invented_constraints_confirmed(client, monkeypatch):
     _, root = project(client); settings(client, root)
     result = fake_result()
@@ -128,6 +161,9 @@ def test_model_cannot_mark_invented_constraints_confirmed(client, monkeypatch):
     assert constraint['confirmation'] == 'pending'
 
 
+# 用例：确认失败完整回滚，并发重复确认不重复生成任务。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_confirm_rollback_and_real_concurrent_requests(client, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
     from backend.dao import planning as dao
@@ -155,6 +191,9 @@ def test_confirm_rollback_and_real_concurrent_requests(client, monkeypatch):
     assert len(client.get(root).json()['tasks']) == 2
 
 
+# 用例：草稿可编辑和丢弃，人工任务变化后旧草稿不能确认。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_draft_edit_discard_and_manual_changes_make_it_stale(client, monkeypatch):
     _, root = project(client); settings(client, root)
     mock_model(monkeypatch, fake_result())
@@ -172,6 +211,9 @@ def test_draft_edit_discard_and_manual_changes_make_it_stale(client, monkeypatch
     assert discarded.status_code == 200 and len(discarded.json()['tasks']) == 1
 
 
+# 用例：模型请求超时返回明确错误，已有任务和草稿保持原样。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_timeout_keeps_draft_and_tasks(client, monkeypatch):
     import httpx
     _, root = project(client); settings(client, root)
@@ -186,6 +228,9 @@ def test_timeout_keeps_draft_and_tasks(client, monkeypatch):
     assert client.get(root).json() == good
 
 
+# 用例：生成依据已确认剧本，引用来源变化时拒绝保存过期建议。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_generation_uses_only_confirmed_script_and_rejects_source_change(client, monkeypatch):
     from backend.models.script import Script, SceneBreakdown
     from backend.ai.client import ModelClient
@@ -207,6 +252,9 @@ def test_generation_uses_only_confirmed_script_and_rejects_source_change(client,
     assert client.get(root).json()['draft'] is None
 
 
+# 用例：重复运行计划表迁移不会丢失原有任务。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_migration_idempotent_preserves_tasks(client):
     from backend.common.database.migrations.planning_v2 import upgrade
     _, root = project(client)
@@ -217,6 +265,9 @@ def test_migration_idempotent_preserves_tasks(client):
     assert client.get(root).json()['tasks'][0]['title'] == '清点器材'
 
 
+# 用例：计算今日到期和临近到期，已完成任务不再显示到期警告。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_due_today_soon_and_completed_state(client):
     from datetime import timedelta
     from backend.tools.planning import today
@@ -230,6 +281,9 @@ def test_due_today_soon_and_completed_state(client):
     assert done['tasks'][0]['due_state'] is None
 
 
+# 用途：创建两版已确认剧本及不同场次内容，供正式依据版本读取测试使用。
+# 参数：client 为客户端，pid 为项目ID；返回两版剧本/场次的引用字典。
+# 副作用：向测试数据库提交剧本和场次记录。
 def evidence_fixture(client, pid):
     from backend.models.script import Script, SceneBreakdown
     with client.app.state.sessions() as session:
@@ -249,6 +303,9 @@ def evidence_fixture(client, pid):
         return {'script_id': first.id, 'scene_id': scene.id}, {'script_id': second.id, 'scene_id': other.id}
 
 
+# 用例：任务依据读取明确关联的正式剧本版本，不混入新版或未确认草稿。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_task_evidence_reads_linked_formal_version_not_latest_or_file_draft(client):
     from backend.tools.script.draft_store import DraftStore
     pid, root = project(client)
@@ -269,6 +326,9 @@ def test_task_evidence_reads_linked_formal_version_not_latest_or_file_draft(clie
     assert client.get(root + f'/tasks/{tid}/evidence', params=newer).status_code == 404
 
 
+# 用例：任务依据跨项目、已删除或未关联时明确拒绝，不猜测替代内容。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_task_evidence_isolated_missing_and_unlinked_are_not_guessed(client):
     from backend.models.script import SceneBreakdown
     pid, root = project(client)

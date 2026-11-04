@@ -1,3 +1,4 @@
+# 测试职责：验证剧本版本工作流：编辑、解析、匹配、确认、导出和并发版本保护。
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import create_app
@@ -7,6 +8,9 @@ SCENE = {"scene_number": "1", "interior_exterior": "内", "atmosphere": "日",
          "location": "车内", "summary": "晚来握着玉佩", "cast": [{"name": "晚来", "category": "主要角色"}],
          "action_props": [{"name": "玉佩", "description": ""}], "evidence_text": TEXT}
 
+# 用途：创建使用临时SQLite数据库的测试应用，并由上下文管理应用生命周期。
+# 参数：tmp_path 为pytest临时目录；存在 monkeypatch 参数时用于隔离草稿、日志或模型依赖。
+# 产出：FastAPI TestClient；测试结束后退出客户端上下文，不连接正式数据库。
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv('DRAFT_DIR', str(tmp_path / 'drafts'))
@@ -24,6 +28,9 @@ def client(tmp_path, monkeypatch):
     with TestClient(create_app(f"sqlite:///{tmp_path / 'v1.db'}")) as c:
         yield c
 
+# 用途：创建初稿或修订版本，启动模拟解析并读取完成后的草稿。
+# 参数：c 为客户端，previous 为可选前版，text 为剧本文本；返回工作区路径和草稿。
+# 副作用：需要时先确认前版，只修改测试项目中的剧本状态。
 def setup(c, previous=None, text=TEXT):
     pid = previous["project_id"] if previous else c.post("/api/projects", json={"name": "降生"}).json()["id"]
     root = f"/api/projects/{pid}/script-workspace"
@@ -41,6 +48,9 @@ def setup(c, previous=None, text=TEXT):
     c.get(f"{root}/{doc['id']}/events")
     return root, c.get(f"{root}/{doc['id']}").json()
 
+# 用例：剧本可保存、确认和导出，旧版本请求不能覆盖新修改。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_edit_confirm_export_and_revision(client):
     root, doc = setup(client)
     row = doc["scenes"][0]
@@ -59,6 +69,9 @@ def test_edit_confirm_export_and_revision(client):
     assert data["status"] == "confirmed"
     assert client.post(f"{root}/{doc['id']}/parse", json={"revision": data["revision"]}).status_code == 409
 
+# 用例：新剧本版本保留人工内容，旧版本进入只读状态。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_new_version_preserves_manual_and_locks_history(client):
     root, old = setup(client)
     old["scenes"][0]["notes"] = "自备雨伞"
@@ -69,6 +82,9 @@ def test_new_version_preserves_manual_and_locks_history(client):
     assert client.put(f"{root}/{old['id']}", json={"revision": old["revision"], "scenes": old["scenes"]}).status_code == 409
     assert client.get(f"{root}/{old['id']}").json()["scenes"][0]["notes"] == "自备雨伞"
 
+# 用例：变化场次需要人工处理匹配和差异确认。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_changed_scene_requires_manual_match_and_review(client):
     root, old = setup(client)
     root, new = setup(client, old, "1 内 日 车内\n晚来拿着手机。")
@@ -82,6 +98,9 @@ def test_changed_scene_requires_manual_match_and_review(client):
     assert "action_props" in new["comparison"]["changed"][0]["fields"]
 
 
+# 用例：修订剧本可在明确批量确认差异后提交正式版本。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_revision_can_be_confirmed_with_batch_acknowledgement(client):
     from io import BytesIO
     from zipfile import ZipFile
@@ -111,6 +130,9 @@ def test_revision_can_be_confirmed_with_batch_acknowledgement(client):
     assert restored['comparison']['deleted'] == []
 
 
+# 用例：已匹配且未变化的场次无需逐条勾选即可确认。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_matched_unchanged_scene_does_not_require_individual_check(client):
     root, old = setup(client)
     root, new = setup(client, old)
@@ -122,6 +144,9 @@ def test_matched_unchanged_scene_does_not_require_individual_check(client):
     assert response.json()['scenes'][0]['change_reviewed'] is False
 
 
+# 用例：只有明确复核的未关联旧场次才归为删除，其余仍待处理。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_only_reviewed_unlinked_scenes_are_classified_as_deleted(client):
     root, old = setup(client)
     root, new = setup(client, old, '1 内 日 车内\n晚来拿着手机。')
@@ -134,6 +159,9 @@ def test_only_reviewed_unlinked_scenes_are_classified_as_deleted(client):
     assert len(saved['comparison']['deleted']) == 1
     assert saved['comparison']['unlinked'] == []
 
+# 用例：跨项目访问被隔离，证据校验失败不会丢失可编辑草稿。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_project_isolation_and_evidence_failure(client, monkeypatch):
     root, doc = setup(client)
     other = client.post("/api/projects", json={"name": "其他"}).json()["id"]
@@ -152,6 +180,9 @@ def test_project_isolation_and_evidence_failure(client, monkeypatch):
     assert state["status"] == "review" and state["scenes"][0]["parse_status"] == "failed"
     assert client.get(f"{root}/{doc['id']}").json()["scenes"]
 
+# 用例：重复确认保持版本不变，确认后的编辑重新进入待复核状态。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_confirmation_retry_and_edit_reopens(client):
     root, doc = setup(client)
     url = f"{root}/{doc['id']}"
@@ -164,6 +195,9 @@ def test_confirmation_retry_and_edit_reopens(client):
     assert edited['status'] == 'review' and edited['confirmed_at'] is None
 
 
+# 用例：伪造场次ID写入失败不推进版本，导出文件仍为有效XML内容。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_fake_scene_id_rolls_back_revision_and_export_is_valid_xml(client):
     from io import BytesIO
     from zipfile import ZipFile
@@ -179,6 +213,9 @@ def test_fake_scene_id_rolls_back_revision_and_export_is_valid_xml(client):
         assert '玉佩' in archive.read('xl/worksheets/sheet1.xml').decode()
 
 
+# 用例：同一版本的并发保存只允许一个成功，其余返回版本冲突。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_same_revision_concurrent_save_has_one_winner(client):
     from concurrent.futures import ThreadPoolExecutor
     root, doc = setup(client)
@@ -189,6 +226,9 @@ def test_same_revision_concurrent_save_has_one_winner(client):
         codes = list(pool.map(edit, ['第一台', '第二台']))
     assert sorted(codes) == [200, 409]
 
+# 用例：增量创建剧本表时保留已有项目数据。
+# 参数：tmp_path 为测试专用临时目录。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_additive_migration_preserves_existing_data(tmp_path):
     from sqlalchemy import inspect
     from backend.common.database.store import database, Project
@@ -204,6 +244,9 @@ def test_additive_migration_preserves_existing_data(tmp_path):
         assert session.get(Project, 'old-project').name == '已有项目'
     engine.dispose()
 
+# 用例：取消解析后到达的模型结果不能覆盖更新后的任务状态。
+# 参数：client 为测试应用客户端；monkeypatch 为临时替换配置或依赖的pytest工具。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_cancelled_parse_cannot_overwrite_newer_state(client, monkeypatch):
     import asyncio
     from backend.service.script.breakdown import parse, recover
@@ -232,6 +275,9 @@ def test_cancelled_parse_cannot_overwrite_newer_state(client, monkeypatch):
     assert len(result['scenes']) == 1 and result['revision'] == 2
 
 
+# 用例：删除差异未明确复核时不能直接确认新版本。
+# 参数：client 为测试应用客户端。
+# 返回：无；使用断言或预期异常检查上述行为。
 def test_deletion_needs_explicit_review(client):
     root, old = setup(client)
     root, new = setup(client, old, '1 内 日 车内\n晚来拿着手机。')
