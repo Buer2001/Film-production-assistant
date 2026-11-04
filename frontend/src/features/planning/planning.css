@@ -1,4 +1,7 @@
 .planning-workspace { max-width: 1160px; margin: 0 auto; }
+.planning-view-tabs { display: flex; gap: 8px; border-bottom: 1px solid #dce3d5; margin-bottom: 22px; padding-bottom: 12px; }
+.planning-view-tabs button { border-color: transparent; background: transparent; border-radius: 7px; padding: 10px 18px; font-size: 16px; }
+.planning-view-tabs button[aria-pressed="true"] { background: #dfe8c9; color: #203f30; border-color: #cbd8b3; font-weight: 600; }
 .planning-workspace fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .planning-workspace label { display: flex; flex-direction: column; gap: 6px; margin: 12px 0; }
 .planning-workspace input, .planning-workspace select, .planning-workspace textarea { width: 100%; min-width: 0; box-sizing: border-box; }
@@ -103,3 +106,46 @@
 
 .gantt-table thead .gantt-fixed.gantt-name { z-index: 9; }
 @media (max-width: 650px) { .gantt-table col:first-child { width: 190px !important; } }
+/* 任务清单优先展示日常操作；侧栏使用原生 dialog 保持焦点和主列表位置。 */
+.planning-workspace .task-main-actions { margin: 12px 0; }
+.task-table-wrap { overflow: auto; }
+.task-table { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; }
+.task-table th, .task-table td { padding: 12px 10px; border-bottom: 1px solid #dedfd5; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.task-table th:first-child { width: 25%; }
+.task-table th:nth-child(2) { width: 10%; }
+.task-table th:nth-child(3) { width: 13%; }
+.task-table th:nth-child(4) { width: 14%; }
+.task-table th:nth-child(5) { width: 12%; }
+.task-table th { background: #f4f5ed; }
+.task-table td select { width: 100%; margin: 0; }
+.task-table .task-name, .task-table .task-note-preview { border: 0; background: transparent; box-shadow: none; color: inherit; text-align: left; padding: 0; line-height: 1.6; }
+.task-table .task-name { font-weight: 600; color: #244832; }
+.task-note-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; white-space: pre-wrap; }
+.task-alert { display: block; margin-top: 5px; color: #976324; }
+.task-quick-filters { margin: 10px 0 18px; align-items: center; }
+.task-quick-filters label { display: flex; align-items: center; gap: 6px; margin: 0; }
+.task-quick-filters input[type=checkbox] { width: auto; }
+.plan-actions button[aria-pressed=true] { background: #dfe8c9; color: #203c2b; }
+.task-group th { background: #e9eddf; }
+.task-drawer { position: fixed; inset: 0 0 0 auto; margin: 0; height: 100dvh; max-height: 100dvh; width: min(560px, 100vw); max-width: 100vw; box-sizing: border-box; border: 0; border-left: 1px solid #dedfd5; padding: 24px; background: #fbfcf7; color: #203129; overflow-y: auto; box-shadow: -12px 0 40px #172a2422; }
+.task-drawer::backdrop { background: #10251b55; }
+.task-drawer > header { position: sticky; top: -24px; padding: 16px 0; background: #fbfcf7; z-index: 2; border-bottom: 1px solid #dedfd5; }
+.task-drawer h2 { font-size: 20px; margin: 0; }
+.task-drawer .plan-editor, .task-drawer .gantt-task-detail { border: 0; padding: 0; background: transparent; margin: 16px 0; }
+.task-drawer .plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.task-drawer input, .task-drawer textarea, .task-drawer select { box-sizing: border-box; max-width: 100%; }
+.task-drawer p, .preserve-lines { white-space: pre-wrap; overflow-wrap: anywhere; }
+.reference-picker { border: 1px solid #dedfd5; border-radius: 6px; padding: 10px; margin: 12px 0; min-width: 0; }
+.reference-options { max-height: 140px; overflow-y: auto; }
+.reference-options label { display: flex; flex-direction: row; gap: 8px; align-items: center; margin: 6px 0; }
+.reference-options input[type=checkbox] { width: auto; margin: 0; }
+.reference-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 6px; }
+.reference-tags button { padding: 4px 8px; font-size: 12px; }
+.task-check-summary { padding: 8px 12px; margin: 8px 0; }
+@media (max-width: 640px) { .task-drawer { padding: 16px; } .task-drawer .plan-grid { grid-template-columns: 1fr; } .task-drawer > header { top: -16px; } }
+.planning-workspace > .task-check-summary { margin: 6px 0; padding: 8px 12px; }
+.task-check-summary > details { padding: 0; margin: 0; border: 0; }
+.task-check-summary summary { margin: 0; padding: 0; }
+.planning-workspace .gantt-filters { grid-template-columns: minmax(180px, 2fr) repeat(3, minmax(100px, 1fr)); }
+.planning-workspace .reference-picker { border: 1px solid #dedfd5; padding: 10px; margin: 12px 0; }
+@media (max-width: 640px) { .planning-workspace .gantt-filters { grid-template-columns: 1fr 1fr; } }

@@ -1,3 +1,4 @@
+// 在本地预览并调整日程建议，保存草稿后才能确认写入正式任务。
 import React, { useEffect, useRef, useState } from 'react';
 import TaskEditor from './TaskEditor';
 import GanttTable from './GanttTable';
@@ -7,7 +8,12 @@ import { emptyTask } from './api';
 const coverageLabels = { addressed: '已安排任务', done: '已落实', not_applicable: '不适用', unknown: '待确认' };
 const clean = t => { const { id, completed_at, created_at, updated_at, overdue, blocked, due_state, ...rest } = t; return rest; };
 
-export default function PlanReview({ data, busy, onSave, onConfirm, onDiscard, onDirty }) {
+/**
+ * 参数：data 含正式任务及草稿，people/peopleUnavailable 为人员资料，busy 控制操作。
+ * onSave/onConfirm/onDiscard 分别保存、确认和放弃，onDirty 通知父层未保存状态；返回草稿审核 JSX。
+ * 使用草稿副本编辑；草稿 ID 或基准版本变化时重置本地编辑，过期草稿禁用保存和确认。
+ */
+export default function PlanReview({ peopleUnavailable = false, people = [], data, busy, onSave, onConfirm, onDiscard, onDirty }) {
   const draft = data.draft;
   const [result, setResult] = useState(() => structuredClone(draft.result));
   const [editing, setEditing] = useState(null), [selected, setSelected] = useState(null);
@@ -25,6 +31,9 @@ export default function PlanReview({ data, busy, onSave, onConfirm, onDiscard, o
   const available = [...data.tasks];
   result.operations.filter(op => op.action === 'add').forEach(op => available.push({ id: op.ref, ...op.task }));
   const checklist = new Map(data.checklist.map(c => [c.id, c.name]));
+  /**
+   * 参数 value 为任务表单结果；新增任务分配临时引用，更新项保留操作类型，仅修改本地建议。
+   */
   function saveTask(value) {
     const operations = [...result.operations];
     if (editing.index === -1) operations.push({ action: 'add', ref: `new-${crypto.randomUUID()}`, task: clean(value), changes: {} });
@@ -34,6 +43,9 @@ export default function PlanReview({ data, busy, onSave, onConfirm, onDiscard, o
     }
     setResult({ ...result, operations }); setEditing(null);
   }
+  /**
+   * 参数 index 为建议下标；删除新增项时一并清理依赖和覆盖引用，避免留下悬空任务引用。
+   */
   function remove(index) {
     const ref = result.operations[index].ref;
     if (result.operations[index].action !== 'add') {
@@ -58,7 +70,7 @@ export default function PlanReview({ data, busy, onSave, onConfirm, onDiscard, o
     <details className="plan-notices"><summary>待确认问题 · {result.questions.length}</summary><label>待确认问题（每行一项）<textarea disabled={busy || data.draft_stale} rows={Math.min(8, Math.max(2, result.questions.length))} value={result.questions.join('\n')} onChange={e => setResult({ ...result, questions: e.target.value.split('\n') })}/></label></details>
     {draft.department_assignment && <p className="plan-muted" role="status">本次为 {draft.department_assignment.target_count} 项任务判断部门，已建议 {draft.department_assignment.assigned_count} 项，其余保留待确认。已有任务内容和时间安排保留。{draft.department_assignment.remaining_count > 0 && `另有 ${draft.department_assignment.remaining_count} 项尚未处理，确认本次草稿后可继续补全。`}</p>}
     {draft.department_assignment && <details className="plan-notices"><summary>部门判断明细</summary>{draft.department_assignment.suggestions.map(s => <p key={s.ref}><strong>{rows.find(r => r.key === s.ref)?.task.title || current.get(s.ref)?.title || '待确认任务'}</strong> · {s.department || '部门待确认'}：{s.reason}</p>)}</details>}
-    <GanttTable rows={rows} settings={data.settings} warnings={draft.warnings} selectedKey={selected} onSelect={row => { if (editing === null) setSelected(row.key); }} label="待确认日程"/>
+    <GanttTable people={people} rows={rows} settings={data.settings} warnings={draft.warnings} selectedKey={selected} onSelect={row => { if (editing === null) setSelected(row.key); }} label="待确认日程"/>
     {selectedOp && selectedTask && <div className="gantt-task-detail" ref={detailRef}><div className="plan-toolbar"><h3>{selectedTask.title}</h3><button type="button" onClick={() => setSelected(null)}>收起详情</button></div>
       {draft.department_assignment?.suggestions.find(s => s.ref === selected)?.reason && <p>部门判断：{draft.department_assignment.suggestions.find(s => s.ref === selected).reason}</p>}
       <p>{selectedTask.description || '暂无说明'}</p><p>完成标准：{selectedTask.completion_criteria || '待补充'}</p><p>实施人员：{selectedTask.details?.assignees?.join('、') || '待分配'}</p>
@@ -69,7 +81,7 @@ export default function PlanReview({ data, busy, onSave, onConfirm, onDiscard, o
       <div className="plan-actions">{selectedOp.action !== 'cancel' && <button disabled={busy || data.draft_stale || editing !== null} onClick={() => setEditing({ index: selectedIndex, value: selectedTask })}>调整建议</button>}<button disabled={busy || data.draft_stale || editing !== null} onClick={() => remove(selectedIndex)}>移除此项建议</button></div>
     </div>}
     <button disabled={busy || data.draft_stale || editing !== null} onClick={() => setEditing({ index: -1, value: emptyTask() })}>补充草稿任务</button>
-    {editing && <TaskEditor resources={data.resource_options || []} key={editing.index} initial={editing.value} tasks={available} scenes={data.scene_options} busy={busy} draft isNew={editing.index === -1 || result.operations[editing.index]?.action === 'add'} onSave={saveTask} onCancel={() => setEditing(null)}/>}
+    {editing && <TaskEditor peopleUnavailable={peopleUnavailable} people={people} resources={data.resource_options || []} key={editing.index} initial={editing.value} tasks={available} scenes={data.scene_options} busy={busy} draft isNew={editing.index === -1 || result.operations[editing.index]?.action === 'add'} onSave={saveTask} onCancel={() => setEditing(null)}/>}
     <details><summary>工作框架查漏 · {result.coverage.length} 项</summary><p>逐项处理不代表模型判断正确，请检查“不适用”和“已落实”的依据。</p>{result.coverage.map((c, i) => <div className="plan-constraint" key={c.check_id}><strong>{checklist.get(c.check_id) || c.check_id}</strong>
       <label>检查结果<select disabled={busy || data.draft_stale} value={c.status} onChange={e => setResult({ ...result, coverage: result.coverage.map((x, n) => n === i ? { ...x, status: e.target.value } : x) })}>{Object.entries(coverageLabels).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
       <label>判断依据<input disabled={busy || data.draft_stale} maxLength={1000} value={c.reason} onChange={e => setResult({ ...result, coverage: result.coverage.map((x, n) => n === i ? { ...x, reason: e.target.value } : x) })}/></label>

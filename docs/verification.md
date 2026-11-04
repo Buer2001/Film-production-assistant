@@ -1,4 +1,55 @@
-# V1 验证记录
+# 验证记录
+
+## V3 提交检查（2026-11-04）
+
+本次仅提交 V3 筹备落实和日程界面相关内容；模型客户端改造、V4 设计及独立注释整理保留在本地。将暂存内容通过 `git checkout-index` 导出至忽略目录 `.test-tmp/v3-release` 单独运行，避免依赖未提交改动：后端 197 passed（1 条既有 Starlette/httpx 弃用警告），离线评估 55/55 passed，前端逻辑 21 passed，Vite 构建成功（59 modules）。此前工作区 214 项后端结果包含本次未提交的 17 项模型客户端测试，不能混作本次发布数量。暂存文件检查未发现疑似密钥；不含本地配置、数据库或剧组材料。
+
+## V3 日程界面调整（2026-11-04）
+
+本轮实际执行项目虚拟环境及前端检查：
+
+- `.venv/Scripts/python.exe -m pytest tests -q`：214 passed，1 条既有 Starlette/httpx 弃用警告。
+- `.venv/Scripts/python.exe -m evaluations.run`：55/55 passed，同上警告。
+- `node --test tests/*.test.mjs`：21 passed，包含新增双周人员资源关联、闰年自然月测试；新增测试先在旧实现失败，再在新实现通过。
+- `npm run build --prefix frontend`：59 modules transformed，构建成功。
+
+浏览器使用已有项目只读资料检查：默认任务清单、甘特图切换、侧栏详情及编辑、人员自然月和双周档期、备注展示、选中人员后新建预关联任务，以及 390px 窄屏编辑布局。通过浏览器网络拦截模拟任务保存失败，确认侧栏显示错误且输入保留，再取消编辑；没有保存测试任务、更新真实任务状态或调用 AI。人员和资源跨第二周的同任务关联另有纯逻辑测试。未进行真实剧组长期验收。
+
+
+## V3 筹备落实（2026-11-03）
+
+本轮使用项目 `.venv` 和临时 SQLite，实际执行：
+
+```text
+.venv/Scripts/python.exe -m pytest tests -q
+197 passed, 1 warning in 53.30s
+
+.venv/Scripts/python.exe -m evaluations.run
+55 passed, 1 warning in 17.27s
+Evaluation: 55/55 passed
+
+cd frontend
+npm.cmd run build
+54 modules transformed; built in 1.03s
+node --test ../tests/*.test.mjs
+tests 10; pass 10; fail 0
+
+.venv/Scripts/python.exe scripts/smoke.py
+PASS V3 人员、资源、日程关联、筹备检查及引用删除保护
+PASS 发布当天通告，初始有效
+PASS 导出通告 TXT，文件名和快照内容正确
+PASS 模型未配置时 Agent 返回 503
+PASS 模型未配置时剧本解析返回 503
+PASS 服务子进程已退出，临时数据库已删除
+```
+
+后端新增覆盖人员正式/待审引用保护、项目隔离、版本冲突、改名、事件、费用状态、时间契约、幂等增量建表、未知时间、连续可用段、不可用优先、完成任务仍有缺口、模型保护人工字段、Agent旧工具保持落实资料及拒绝新落实字段。warning 为现有 Starlette/httpx 弃用提示，本轮未因此新增依赖。
+
+独立审查和最后复核未发现阻塞缺陷。使用 agent-browser 独立会话、临时数据库和当前构建验证：录入小王及可用日期；录入教室、联系人、确认状态及可用时间；任务未选资源时提示缺口；选定教室并移除已落实需求后缺口消除；教室改为不可用后重新提示受影响任务；编辑中项目和页面切换被禁用。浏览器控制台无错误。原生日期在浏览器自动化中以 DOM 输入事件填写，未向正式数据库写数据。
+
+首次 HTTP 冒烟失败原因为历史脚本仍创建已停用旧 task；脚本已按 V2 当前契约改用新日程入口，并保留 requirement/通告兼容检查，修正后完整通过。
+
+本轮未使用真实模型，不覆盖真实剧组长期使用或 MySQL/PostgreSQL 实测。历史验证内容如下，历史数量不代表当前总数。
 
 ## 2026-11-02 V2收口
 

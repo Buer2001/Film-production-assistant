@@ -1,4 +1,6 @@
+// 按部门组织甘特图，支持日、周、月时间轴及任务选择。
 import React, { useMemo, useState } from 'react';
+import { personNames } from '../preparation/people';
 import { categories, statuses } from './api';
 import { makeAxis, taskPosition, departmentGroups, axisOffset } from './timeline';
 
@@ -9,7 +11,12 @@ const dueLabels = { overdue: '逾期', today: '今日到期', soon: '三天内�
 const dateText = value => value ? `${Number(value.slice(5, 7))}/${Number(value.slice(8, 10))}` : '待定';
 const localToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 
-export default function GanttTable({ rows, settings = {}, warnings = [], onSelect, selectedKey, label }) {
+/**
+ * 参数：rows 为任务投影行，settings 为里程碑，warnings 为提醒，people 为人员资料。
+ * onSelect 接收选中行，selectedKey 标记当前行，label 为表格说明；返回甘特图 JSX。
+ * 时间轴只作展示；无日期或异常跨度时显示提示，不补造任务安排。
+ */
+export default function GanttTable({ people = [], rows, settings = {}, warnings = [], onSelect, selectedKey, label }) {
   const [mode, setMode] = useState('week'), [collapsed, setCollapsed] = useState(new Set());
   const axis = useMemo(() => makeAxis(rows, mode, settings), [rows, mode, settings]);
   const groups = useMemo(() => departmentGroups(rows), [rows]);
@@ -39,7 +46,7 @@ export default function GanttTable({ rows, settings = {}, warnings = [], onSelec
               const selected = selectedKey === row.key;
               return <tr key={row.key} className={`gantt-task-row ${selected ? 'is-selected' : ''} ${row.change === 'cancel' ? 'is-cancelled' : ''}`}>
                 <td className="gantt-fixed gantt-name" style={style(0)}><button type="button" className="gantt-task-link" onClick={() => onSelect(row)} title={t.title}>{row.change && <span className={`gantt-change change-${row.change}`}>{changeLabels[row.change]}</span>}{t.title}</button><div className="gantt-row-meta">{categories[t.category] || '其他'}{(t.details?.collaborating_departments || []).length > 0 && <span title={t.details.collaborating_departments.join('、')}> · 协作 {t.details.collaborating_departments.join('、')}</span>}</div></td>
-                <td className="gantt-fixed" style={style(1)} title={(t.details?.assignees || []).join('、')}>{t.details?.assignees?.length ? t.details.assignees.join('、') : <span className="gantt-unassigned">待分配</span>}</td>
+                <td className="gantt-fixed" style={style(1)} title={personNames(t.details, people).join('、')}>{personNames(t.details, people).length ? personNames(t.details, people).join('、') : <span className="gantt-unassigned">待分配</span>}</td>
                 <td className="gantt-fixed gantt-date" style={style(2)} title={t.planned_start || '开始日期待定'}>{dateText(t.planned_start)}</td><td className="gantt-fixed gantt-date" style={style(3)} title={t.planned_end || '完成日期待定'}>{dateText(t.planned_end)}</td>
                 <td className="gantt-fixed" style={style(4)}><span className={`gantt-status status-${t.status}`}>{statuses[t.status] || '待办'}</span>{(t.due_state || t.blocked || count > 0) && <small className="gantt-row-warning">{[dueLabels[t.due_state], t.blocked ? '前置未完成' : '', count ? `${count}条提醒` : ''].filter(Boolean).join(' · ')}</small>}</td>
                 <td className="gantt-chart-cell"><div className="gantt-track" style={{ width: Math.max(axis.width, 220), '--gantt-unit': `${axis.cellWidth || 112}px` }}>{guides()}{position ? <button type="button" className={`gantt-bar status-${t.status} ${row.change === 'cancel' ? 'is-cancelled' : ''}`} style={{ left: position.left + 2, width: Math.max(3, position.width - 4) }} onClick={() => onSelect(row)} aria-label={`${t.title}，${t.planned_start}至${t.planned_end}`} title={`${t.title}\n${t.planned_start} → ${t.planned_end}`}><span>{t.title}</span></button> : <span className="gantt-no-dates">{axis.warning ? '—' : '日期待定'}</span>}</div></td>
