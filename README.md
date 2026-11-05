@@ -1,3 +1,5 @@
+![AI 辅助电影制片概念主视觉](assets/readme/cinematic-hero-v2.png)
+
 <h1 align="center">片场 · 学生制片工作台</h1>
 
 <p align="center"><strong>Film-production-assistant</strong><br />
@@ -35,6 +37,10 @@ AI 用于生成剧本拆解和日程建议。制片统筹 Agent 根据剧本、�
 ## 业务流程
 
 制片统筹 Agent 支持协助编排和条件变化后重排，两类修改合并为一份联合草稿。信息不足时等待人工补充；程序检查和模型复核后，由制片人员审阅确认。
+
+![制片统筹 Agent 汇总场次、档期和资源，辅助人工审阅拍摄方案的概念插图](assets/readme/production-agent-concept-v2.png)
+
+<p align="center"><sub>以上两张 AI 生成图片为项目概念插图，非产品界面截图；具体能力以功能说明和流程图为准。</sub></p>
 
 ![制片统筹 Agent 业务流程图](assets/readme/agent-workflow.svg)
 
