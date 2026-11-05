@@ -36,29 +36,9 @@ AI 用于生成剧本拆解和日程建议。制片统筹 Agent 根据剧本、�
 
 制片统筹 Agent 支持协助编排和条件变化后重排，两类修改合并为一份联合草稿。信息不足时等待人工补充；程序检查和模型复核后，由制片人员审阅确认。
 
-```mermaid
-flowchart TD
-    A[已确认剧本、项目节点、人员资源] --> B[向制片统筹 Agent 提出编排或重排要求]
-    B --> C{工作目标}
-    C --> D[协助编排]
-    C --> E[条件变化后重排]
-    E --> F[查询受影响的任务和拍摄安排]
-    D --> G[生成联合调整方案]
-    F --> G
-    G --> H[程序检查：依赖、日期、档期、准备缺口]
-    H --> I[模型复核，必要时有限修正]
-    I --> J[联合草稿：日程任务＋拍摄安排]
-    J --> K[制片审阅、修改、确认]
-    K --> L[执行前重新检查]
-    L --> M[统一事务保存，失败整体回滚]
-    M --> N[展示执行结果及需复核的通告]
-    B -. 信息不足 .-> Q[等待制片补充]
-    Q --> B
+![制片统筹 Agent 业务流程图](assets/readme/agent-workflow.svg)
 
-    style B fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#172554
-    style J fill:#dbeafe,stroke:#2563eb,color:#172554
-    style K fill:#fef3c7,stroke:#d97706,color:#451a03
-```
+[查看 Mermaid 源码](assets/readme/agent-workflow.mmd)
 
 剧本、项目节点、人员档案及档期、资源落实资料、拍摄日志和已发布通告作为只读依据；Agent 的修改范围为项目日程任务和拍摄安排。
 
@@ -154,32 +134,9 @@ DATABASE_URL=sqlite:///./film_production.db
 
 后端按技术层分包，包内按业务组织。Router 处理 HTTP 边界，Service 管理业务和事务，DAO 负责数据库访问；AI 模型通信和纯工具独立维护。
 
-```mermaid
-flowchart TB
-    UI[React 制片工作台] --> API[FastAPI 接口]
+![制片统筹 Agent 代码架构图](assets/readme/agent-architecture.svg)
 
-    subgraph V5[制片统筹 Agent]
-        R[运行器：推进步骤、持久化状态]
-        S[理解 → 加载 → 影响分析 → 生成 → 检查 → 复核]
-        D[联合草稿、人工审阅入口]
-        R --> S --> D
-    end
-
-    API --> R
-    S --> AI[公共模型客户端]
-    S --> CHECK[规则检查工具]
-    S --> BIZ[业务 Service]
-    D --> APPLY[确认执行 Service]
-    API --> BIZ
-    APPLY --> TX[日程任务和拍摄安排统一事务]
-    BIZ --> DAO[DAO 数据访问]
-    TX --> DAO
-    R --> STATE[运行状态持久化]
-    STATE --> DAO
-    DAO --> DB[(业务数据、运行记录、草稿、执行凭据)]
-
-    style V5 fill:#eff6ff,stroke:#2563eb,stroke-width:2px,color:#172554
-```
+[查看 Mermaid 源码](assets/readme/agent-architecture.mmd)
 
 制片统筹 Agent 复用既有业务服务、规则检查和模型客户端；业务数据通过 Service 和 DAO 修改，模型不能直接写库或绕过人工确认。
 

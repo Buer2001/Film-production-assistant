@@ -1,0 +1,24 @@
+flowchart TB
+    UI[React 制片工作台] --> API[FastAPI 接口]
+
+    subgraph V5[制片统筹 Agent]
+        R[运行器：推进步骤、持久化状态]
+        S[理解 → 加载 → 影响分析 → 生成 → 检查 → 复核]
+        D[联合草稿、人工审阅入口]
+        R --> S --> D
+    end
+
+    API --> R
+    S --> AI[公共模型客户端]
+    S --> CHECK[规则检查工具]
+    S --> BIZ[业务 Service]
+    D --> APPLY[确认执行 Service]
+    API --> BIZ
+    APPLY --> TX[日程任务和拍摄安排统一事务]
+    BIZ --> DAO[DAO 数据访问]
+    TX --> DAO
+    R --> STATE[运行状态持久化]
+    STATE --> DAO
+    DAO --> DB[(业务数据、运行记录、草稿、执行凭据)]
+
+    style V5 fill:#eff6ff,stroke:#2563eb,stroke-width:2px,color:#172554
