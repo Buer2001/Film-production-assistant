@@ -198,7 +198,7 @@ def save_task(session, pid, request, task_id=None):
 # 用途：模拟应用草稿操作并校验最终任务集合。
 # 参数：current 为现有任务映射，result 为可变草稿，settings 为设置；model 开启模型保护，generation_id 标记来源。
 # 返回及副作用：返回最终任务映射及提醒；会净化并回写 result，校验引用但不写正式任务；不合法抛 BusinessError。
-def apply_result(session, pid, current, result, settings, *, model=False, generation_id=None):
+def apply_result(session, pid, current, result, settings, *, model=False, generation_id=None, require_coverage=True, origin_type='model'):
     final = {key: deepcopy(value) for key, value in current.items()}
     refs = [op['ref'] for op in result['operations']]
     if len(refs) != len(set(refs)):
@@ -211,7 +211,7 @@ def apply_result(session, pid, current, result, settings, *, model=False, genera
             data = validate(TaskData, op['task']).model_dump(mode='json')
             if data['status'] != 'todo':
                 raise BusinessError(422, '新增建议必须是待办任务')
-            data['details']['origin'] = {'type': 'model', 'generation_id': generation_id}
+            data['details']['origin'] = {'type': origin_type, 'generation_id': generation_id}
         else:
             if key not in current:
                 raise BusinessError(422, '修改任务不存在或不属于本计划')
@@ -251,12 +251,63 @@ def apply_result(session, pid, current, result, settings, *, model=False, genera
         final[key] = {'id': key, **data}
     if len(final) > MAX_TASKS:
         raise BusinessError(422, '单项目最多500项任务')
-    check_coverage(result, ai.checklist(), set(final))
+    # V5 联合草稿只调整指定范围，不强制覆盖全部检查清单；日程生成仍保持完整覆盖要求。
+    if require_coverage:
+        check_coverage(result, ai.checklist(), set(final))
     for task in final.values():
         if not set(task['details']['checklist_refs']) <= {c['id'] for c in ai.checklist()}:
             raise BusinessError(422, '任务关联了未知检查项')
     warnings = check_tasks(list(final.values()), settings)
     return final, warnings
+
+
+# 用途：把联合草稿的任务操作转换成日程建议结构。
+# 参数：operations 为 V5 草稿操作列表，含 add/update/cancel 三种动作。
+# 返回及副作用：返回只含 operations 的建议结构；不修改入参，不写库。
+def task_operations(operations):
+    """V5 任务操作转成日程建议结构，使模型保护和净化逻辑只有一份。"""
+    converted = []
+    for op in operations:
+        if op['action'] == 'add':
+            converted.append({'action': 'add', 'ref': op['temp_id'], 'task': op['patch'], 'changes': {}})
+        elif op['action'] == 'update':
+            converted.append({'action': 'update', 'ref': op['target_id'], 'task': None, 'changes': op['patch']})
+        else:
+            converted.append({'action': 'cancel', 'ref': op['target_id'], 'task': None, 'changes': {}})
+    return {'operations': converted, 'questions': [], 'coverage': []}
+
+
+# 用途：只计算候选任务合并后的整体视图，用于提交前的程序检查。
+# 参数：operations 为联合草稿中的任务操作，generation_id 为本次工作编号。
+# 返回及副作用：返回最终任务映射和提醒；读正式任务但不写库，不合法抛 BusinessError。
+def plan_task_ops(session, pid, operations, *, generation_id=None, model=False):
+    row = dao.get(session, pid)
+    current = {t.id: task_data(t) for t in dao.tasks(session, row.id)} if row else {}
+    return apply_result(session, pid, current, task_operations(operations), settings_data(row),
+                        model=model, generation_id=generation_id, require_coverage=False,
+                        origin_type='model' if model else 'manual')
+
+
+# 用途：在已领取计划版本的同一事务内写入正式任务。
+# 参数：row 为已领取版本的计划行，operations 为任务操作，model 表示来源为模型。
+# 返回及副作用：返回临时编号到正式任务 ID 的映射；不提交，任一步失败由外层整体回滚。
+def apply_task_ops(session, pid, row, operations, *, generation_id=None, model=False):
+    current = {t.id: task_data(t) for t in dao.tasks(session, row.id, current=True)}
+    final, _ = apply_result(session, pid, current, task_operations(operations), settings_data(row),
+                            model=model, generation_id=generation_id, require_coverage=False,
+                            origin_type='model' if model else 'manual')
+    mapping = {op['temp_id']: uid() for op in operations if op['action'] == 'add'}
+    for op in operations:
+        # final 以草稿编号为键：新增用临时编号，修改和取消用正式 ID。
+        if op['action'] == 'add':
+            key, data = mapping[op['temp_id']], clean_task(final[op['temp_id']])
+        else:
+            key, data = op['target_id'], clean_task(final[op['target_id']])
+        # 同批新增任务之间的前置依赖先用临时编号表达，写入前统一换成正式 ID。
+        for dep in data['details']['dependencies']:
+            dep['task_id'] = mapping.get(dep['task_id'], dep['task_id'])
+        dao.write_task(session, row.id, key, storage_data(data), current.get(key))
+    return mapping
 
 
 # 用途：调用模型生成待确认日程建议。

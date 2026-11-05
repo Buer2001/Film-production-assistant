@@ -1,6 +1,9 @@
 # 文件职责：管理拍摄计划和实际日志，汇集正式来源；版本、业务写入和事件处于同一事务。
 from backend.common.errors import BusinessError
+from backend.common.database.base import uid
+from backend.schemas.shooting import ItemData
 from backend.dao import shooting as dao, project as projects
+from copy import deepcopy
 from backend.dao.event import add_event
 from backend.service.project import get_project
 from backend.service.person import person_dict
@@ -56,14 +59,9 @@ def require_scene(data, scene_id):
         raise BusinessError(422, '场次不存在、未正式确认或不属于本项目')
 
 
-# 新建或完整替换安排；人工保存无需模型草稿，取消保留记录及历史引用。
-def save_item(s, pid, request, iid=None):
-    claim(s, pid, request.revision)
-    current = dao.get_item(s, pid, iid) if iid else None
-    if iid and current is None:
-        raise BusinessError(404, '拍摄安排不存在')
-    data = request.item.model_dump(mode='json')
-    source = facts(s, pid, locked=True)
+# 校验一条安排的场次、人员、资源引用及既有日志约束，返回规范化数据；不写库。
+# current 为被修改的安排对象，新增时为 None；source 是同一事务内的正式来源。
+def prepare_item(s, pid, data, *, current, source):
     if data['scene_id']:
         require_scene(source, data['scene_id'])
     for field, options in [('person_ids', source['people']), ('resource_ids', source['resources'])]:
@@ -74,11 +72,66 @@ def save_item(s, pid, request, iid=None):
         if not log or data['kind'] != 'shoot' or log.scene_id != data['scene_id']:
             raise BusinessError(422, '补拍必须关联本项目同一场次的日志')
     # 已有实际结果不能改成另一场或非拍摄项，否则日志将失去正确的计划依据。
-    if current and any(r['data']['item_id'] == iid for r in source['logs']):
+    if current and any(r['data']['item_id'] == current.id for r in source['logs']):
         if data['scene_id'] != current.scene_id or data['kind'] != 'shoot':
             raise BusinessError(422, '已有日志的安排不能更换场次或改为非拍摄项')
         if data['reshoot_log_id'] != current.data.get('reshoot_log_id'):
             raise BusinessError(422, '已有日志的安排不能更换补拍来源，请新建补拍安排')
+    return data
+
+
+# 把联合草稿的拍摄安排操作合并成候选视图并校验，供提交前检查使用；不写库。
+# locked=True 用于统一执行事务内，读取领取项目版本之后的当前资料。
+def plan_item_ops(s, pid, operations, *, locked=False):
+    source = facts(s, pid, locked=locked)
+    current = {r['id']: r['data'] for r in source['items']}
+    final = {key: deepcopy(value) for key, value in current.items()}
+    for op in operations:
+        if op['action'] == 'add':
+            data = ItemData(**op['patch']).model_dump(mode='json')
+            prepare_item(s, pid, data, current=None, source=source)
+            final[op['temp_id']] = data
+        elif op['action'] == 'update':
+            target = op['target_id']
+            if target not in current:
+                raise BusinessError(422, '拍摄安排不存在或不属于本项目')
+            merged = {**current[target], **op['patch']}
+            data = ItemData(**merged).model_dump(mode='json')
+            prepare_item(s, pid, data, current=dao.get_item(s, pid, target), source=source)
+            final[target] = data
+        else:
+            target = op['target_id']
+            if target not in current:
+                raise BusinessError(422, '拍摄安排不存在或不属于本项目')
+            # 取消保留记录和已有日志引用，不做物理删除。
+            final[target] = {**current[target], 'status': 'cancelled'}
+    return [{'id': key, 'data': value} for key, value in final.items()]
+
+
+# 在统一执行事务内写入拍摄安排并返回临时编号映射；不提交，失败由外层回滚。
+def apply_item_ops(s, pid, operations):
+    view = {row['id']: row['data'] for row in plan_item_ops(s, pid, operations, locked=True)}
+    mapping = {op['temp_id']: uid() for op in operations if op['action'] == 'add'}
+    for op in operations:
+        # 合并视图以草稿编号为键：新增用临时编号，修改和取消用正式 ID。
+        if op['action'] == 'add':
+            key = mapping[op['temp_id']]
+            dao.write_item(s, pid, view[op['temp_id']], None)
+        else:
+            target = op['target_id']
+            dao.write_item(s, pid, view[target], dao.get_item(s, pid, target))
+    return mapping
+
+
+# 新建或完整替换安排；人工保存无需模型草稿，取消保留记录及历史引用。
+def save_item(s, pid, request, iid=None):
+    claim(s, pid, request.revision)
+    current = dao.get_item(s, pid, iid) if iid else None
+    if iid and current is None:
+        raise BusinessError(404, '拍摄安排不存在')
+    data = request.item.model_dump(mode='json')
+    source = facts(s, pid, locked=True)
+    prepare_item(s, pid, data, current=current, source=source)
     before = current.data if current else None
     row = dao.write_item(s, pid, data, current)
     add_event(s, pid, 'shooting_item', {'id': row.id, 'before': before, 'after': data, 'revision': request.revision + 1})

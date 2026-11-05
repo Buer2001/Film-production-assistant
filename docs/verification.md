@@ -1,5 +1,48 @@
 # 验证记录
 
+## V5 变更闭环 P3—P5（2026-11-04）
+
+本轮补齐通告复核、差异记录和审阅页面：
+
+- `.venv/Scripts/python.exe -m pytest tests -q`：242 passed，1 条既有 Starlette/httpx 弃用警告。
+- `.venv/Scripts/python.exe -m evaluations.run`：55/55 passed。
+- `node --test` 全部 `tests/*.test.mjs`：28 passed（新增 5 项助手草稿纯函数测试）。
+- `npm run build`：构建成功。
+
+新增 2 项后端回归：改期后当天已发布通告被列入需复核并记录改动前后值；人工改过草稿后执行记录保留建议稿与最终稿差异。新增 5 项前端纯逻辑测试：按对象分组、差异字段、操作标题回落、检查级别分组、未排场次文案。
+
+本轮改动：`agent_work.confirm` 增加执行前的旧值快照、受影响日期计算、通告复核和差异记录，结果写入执行凭据；`inspect_candidate` 为修改和取消操作补齐当前值，供审阅页面展示；`edit_draft` 保留建议稿原文；`run_dict` 返回已确认草稿和执行结果；前端新增 `features/agent/`（接口、纯函数、页面）并在导航加入「制片助手」。
+
+限制：本轮只验证构建和接口契约，没有在浏览器里实际操作新面板；通告复核只比较当天来源指纹，不判断重发是否合适；偏好沉淀和复盘未实现。
+
+## V5 变更闭环 P2（2026-11-04）
+
+本轮把要求理解、候选生成、模型复核和有限修正接上真实模型接口，测试用模拟模型替身，未调用真实模型：
+
+- `.venv/Scripts/python.exe -m pytest tests -q`：240 passed，1 条既有 Starlette/httpx 弃用警告。
+- `.venv/Scripts/python.exe -m evaluations.run`：55/55 passed。
+- `node --test` 指定 `tests/*.test.mjs`：23 passed。
+- `npm run build`：65 modules transformed，构建成功。
+
+新增 5 项回归（`tests/test_agent_model.py`）：一句话发起走完理解→候选→复核并进入待审阅；复核发现问题后修正一轮并重新检查；制片自己提交的候选不调用模型；修正达到上限转人工；模型通信失败返回 502 且不留半成品草稿。
+
+本轮改动：`ai/planning._request` 增加 `prompt_dir` 参数，供 Agent 使用自己的提示词目录；新增 `ai/agent.py` 和四个提示词；步骤函数改为异步，模型调用前先提交读事务；状态机增加 `reflect`、`revise` 两个步骤及对应转换；运行推进改为异步，单次请求最多 12 步；`run_dict` 增加 `reflect_status`。
+
+限制：复核只针对模型来源的候选，制片手工提交的候选直接进入审阅；每 run 最多两次复核、两轮修正、六次模型调用；模型输出仍受字段白名单和程序检查约束，模型不能填写人员落实字段，也不能降低检查级别。真实模型生成质量、真实剧本和页面流程均未验证。
+
+## V5 变更闭环 P1（2026-11-04）
+
+本轮只做不接模型的联合草稿与统一事务闭环，模型生成、影响分析和通告复核尚未实现：
+
+- `.venv/Scripts/python.exe -m pytest tests -q`：235 passed，1 条既有 Starlette/httpx 弃用警告。
+- `.venv/Scripts/python.exe -m evaluations.run`：55/55 passed。
+- `node --test` 指定 `tests/*.test.mjs`：23 passed。
+- `npm run build`：65 modules transformed，构建成功。
+
+新增 9 项回归（`tests/test_agent_v5.py`）：联合草稿同时包含任务和拍摄安排、未排场次必须知情保留、任一侧写入失败整体回滚、四线程并发确认只执行一次、草稿生成后正式数据变化被拒、信息不足暂停且恢复需当前版本号、人工改草稿使旧版本确认失效、模型来源候选不能写人员落实字段、应用重启后运行状态与待审草稿仍在。
+
+本轮的取舍与限制：候选由制片经接口手工提交，没有自然语言理解；`tools/planning.check_tasks` 的提醒新增 `code` 字段用于分级，提示文字未变；`service/planning.apply_result` 增加 `require_coverage` 和 `origin_type` 参数，日程生成仍保持完整清单覆盖要求；`service/planning` 与 `service/shooting` 各抽出不提交的内部写入函数，供统一事务复用。未做真实模型生成质量、真实剧组使用、MySQL/PostgreSQL 实测和页面流程验证。
+
 ## V4 拍摄管理首版（2026-11-04）
 
 本轮在当前工作区执行，不代表全部既有本地修改已提交或已发布：

@@ -19,7 +19,8 @@ def checklist():
 
 
 # 接收业务 data、可注入 model、日志 context 及结构契约配置；返回校验后 JSON 字典，通信或结构失败抛业务异常，不写任务。
-async def _request(data, model, context, *, schema, tool_name, prompt_name, label, operation):
+# prompt_dir 允许调用方使用专用提示词目录，V5 Agent 的提示词集中在 backend/agent/prompts。
+async def _request(data, model, context, *, schema, tool_name, prompt_name, label, operation, prompt_dir=None):
     start = perf_counter()
     payload = json.dumps(data, ensure_ascii=False)
 
@@ -44,7 +45,7 @@ async def _request(data, model, context, *, schema, tool_name, prompt_name, labe
     logger.info('planning.requested', extra=fields)
     try:
         response = await (model or ModelClient()).chat([
-            {'role': 'system', 'content': load_prompt(prompt_name)}, {'role': 'user', 'content': payload}], tools)
+            {'role': 'system', 'content': load_prompt(prompt_name, directory=prompt_dir)}, {'role': 'user', 'content': payload}], tools)
     except httpx.TimeoutException:
         reject('model_timeout', '模型请求超时，请稍后手动重试', status=502)
     except httpx.HTTPError:

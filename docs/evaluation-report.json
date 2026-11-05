@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-04T13:59:56.700879+00:00",
+  "generated_at": "2026-11-05T01:36:00.380216+00:00",
   "mode": "offline_mock_model",
   "total": 55,
   "passed": 55,
@@ -9,277 +9,277 @@
     {
       "scenario": "test_parse_preserves_evidence_and_normalizes_names",
       "status": "passed",
-      "seconds": 0.027
+      "seconds": 0.021
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch0]",
       "status": "passed",
-      "seconds": 0.009
+      "seconds": 0.004
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch1]",
       "status": "passed",
-      "seconds": 0.007
+      "seconds": 0.005
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch2]",
       "status": "passed",
-      "seconds": 0.008
+      "seconds": 0.005
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch3]",
       "status": "passed",
-      "seconds": 0.008
+      "seconds": 0.005
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch4]",
       "status": "passed",
-      "seconds": 0.009
+      "seconds": 0.004
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch5]",
       "status": "passed",
-      "seconds": 0.008
+      "seconds": 0.004
     },
     {
       "scenario": "test_parse_rejects_unsupported_claims[patch6]",
       "status": "passed",
-      "seconds": 0.007
+      "seconds": 0.003
     },
     {
       "scenario": "test_parse_preview_draft_approval_and_stale_version",
       "status": "passed",
-      "seconds": 0.666
+      "seconds": 0.4
     },
     {
       "scenario": "test_impact_finds_paths_notices_and_isolates_project",
       "status": "passed",
-      "seconds": 0.61
+      "seconds": 0.311
     },
     {
       "scenario": "test_impact_of_pending_deletion_uses_existing_links",
       "status": "passed",
-      "seconds": 0.614
+      "seconds": 0.258
     },
     {
       "scenario": "test_new_schedule_draft_finds_shared_resources_and_notice",
       "status": "passed",
-      "seconds": 0.462
+      "seconds": 0.198
     },
     {
       "scenario": "test_parse_reports_missing_conditions_and_uncovered_text",
       "status": "passed",
-      "seconds": 0.008
+      "seconds": 0.005
     },
     {
       "scenario": "test_stale_parse_cannot_be_imported_and_unknown_resource_warns",
       "status": "passed",
-      "seconds": 0.491
+      "seconds": 0.22
     },
     {
       "scenario": "test_concurrent_parse_conversion_does_not_duplicate_drafts",
       "status": "passed",
-      "seconds": 0.424
+      "seconds": 0.223
     },
     {
       "scenario": "test_agent_recovers_from_invalid_tools_without_writing[confirm-args0]",
       "status": "passed",
-      "seconds": 0.354
+      "seconds": 0.149
     },
     {
       "scenario": "test_agent_recovers_from_invalid_tools_without_writing[search_records-args1]",
       "status": "passed",
-      "seconds": 0.368
+      "seconds": 0.14
     },
     {
       "scenario": "test_agent_recovers_from_invalid_tools_without_writing[propose_change-args2]",
       "status": "passed",
-      "seconds": 0.364
+      "seconds": 0.132
     },
     {
       "scenario": "test_confirmation_is_idempotent_and_old_changes_conflict",
       "status": "passed",
-      "seconds": 0.41
+      "seconds": 0.151
     },
     {
       "scenario": "test_failed_batch_is_atomic_and_project_scoped",
       "status": "passed",
-      "seconds": 0.388
+      "seconds": 0.162
     },
     {
       "scenario": "test_notice_snapshot_remains_valid_after_scene_title_change",
       "status": "passed",
-      "seconds": 0.499
+      "seconds": 0.174
     },
     {
       "scenario": "test_schedule_checks_shared_resources_and_unknown_readiness",
       "status": "passed",
-      "seconds": 0.367
+      "seconds": 0.165
     },
     {
       "scenario": "test_unconfigured_agent_does_not_fake_success",
       "status": "passed",
-      "seconds": 0.439
+      "seconds": 0.154
     },
     {
       "scenario": "test_rejected_draft_cannot_be_confirmed_and_invalid_expense_rejected",
       "status": "passed",
-      "seconds": 0.436
+      "seconds": 0.156
     },
     {
       "scenario": "test_agent_tool_loop_creates_only_pending_draft",
       "status": "passed",
-      "seconds": 0.336
+      "seconds": 0.139
     },
     {
       "scenario": "test_edit_confirm_export_and_revision",
       "status": "passed",
-      "seconds": 0.699
+      "seconds": 0.293
     },
     {
       "scenario": "test_new_version_preserves_manual_and_locks_history",
       "status": "passed",
-      "seconds": 0.929
+      "seconds": 0.344
     },
     {
       "scenario": "test_changed_scene_requires_manual_match_and_review",
       "status": "passed",
-      "seconds": 0.879
+      "seconds": 0.345
     },
     {
       "scenario": "test_revision_can_be_confirmed_with_batch_acknowledgement",
       "status": "passed",
-      "seconds": 0.822
+      "seconds": 0.352
     },
     {
       "scenario": "test_matched_unchanged_scene_does_not_require_individual_check",
       "status": "passed",
-      "seconds": 0.767
+      "seconds": 0.318
     },
     {
       "scenario": "test_only_reviewed_unlinked_scenes_are_classified_as_deleted",
       "status": "passed",
-      "seconds": 0.855
+      "seconds": 0.329
     },
     {
       "scenario": "test_project_isolation_and_evidence_failure",
       "status": "passed",
-      "seconds": 0.726
+      "seconds": 0.296
     },
     {
       "scenario": "test_confirmation_retry_and_edit_reopens",
       "status": "passed",
-      "seconds": 0.635
+      "seconds": 0.254
     },
     {
       "scenario": "test_fake_scene_id_rolls_back_revision_and_export_is_valid_xml",
       "status": "passed",
-      "seconds": 0.522
+      "seconds": 0.217
     },
     {
       "scenario": "test_same_revision_concurrent_save_has_one_winner",
       "status": "passed",
-      "seconds": 0.552
+      "seconds": 0.24
     },
     {
       "scenario": "test_additive_migration_preserves_existing_data",
       "status": "passed",
-      "seconds": 0.104
+      "seconds": 0.035
     },
     {
       "scenario": "test_cancelled_parse_cannot_overwrite_newer_state",
       "status": "passed",
-      "seconds": 0.469
+      "seconds": 0.212
     },
     {
       "scenario": "test_deletion_needs_explicit_review",
       "status": "passed",
-      "seconds": 0.934
+      "seconds": 0.401
     },
     {
       "scenario": "test_streaming_drafts_do_not_enter_formal_scenes",
       "status": "passed",
-      "seconds": 0.461
+      "seconds": 0.202
     },
     {
       "scenario": "test_failure_isolated_then_explicit_manual_or_excluded_confirmation",
       "status": "passed",
-      "seconds": 0.634
+      "seconds": 0.314
     },
     {
       "scenario": "test_save_during_model_call_preserves_manual_fields_and_late_result",
       "status": "passed",
-      "seconds": 0.489
+      "seconds": 0.237
     },
     {
       "scenario": "test_restart_marks_running_draft_interrupted_and_preserves_finished_scenes",
       "status": "passed",
-      "seconds": 0.367
+      "seconds": 0.166
     },
     {
       "scenario": "test_retry_only_failed_scene_and_excluded_scene_is_not_requested",
       "status": "passed",
-      "seconds": 0.67
+      "seconds": 0.346
     },
     {
       "scenario": "test_file_save_and_sql_confirm_failures_can_retry_without_revision_drift",
       "status": "passed",
-      "seconds": 0.588
+      "seconds": 0.221
     },
     {
       "scenario": "test_edit_confirmed_script_keeps_formal_rows_until_second_confirmation",
       "status": "passed",
-      "seconds": 0.643
+      "seconds": 0.273
     },
     {
       "scenario": "test_late_confirmation_receipt_repair_cannot_overwrite_new_manual_save",
       "status": "passed",
-      "seconds": 0.564
+      "seconds": 0.246
     },
     {
       "scenario": "test_completed_sse_snapshot_has_current_comparison_and_manual_missing_hints",
       "status": "passed",
-      "seconds": 0.719
+      "seconds": 0.669
     },
     {
       "scenario": "test_split_scenes_preserves_original_and_skips_credits",
       "status": "passed",
-      "seconds": 0.002
+      "seconds": 0.0
     },
     {
       "scenario": "test_unknown_boundaries_are_kept_for_manual_review",
       "status": "passed",
-      "seconds": 0.002
+      "seconds": 0.0
     },
     {
       "scenario": "test_draft_store_atomic_update_and_path_safety",
       "status": "passed",
-      "seconds": 0.176
+      "seconds": 0.076
     },
     {
       "scenario": "test_single_scene_extraction_keeps_global_source_location",
       "status": "passed",
-      "seconds": 0.012
+      "seconds": 0.005
     },
     {
       "scenario": "test_empty_legacy_placeholder_allows_parse_without_destroying_existing_data",
       "status": "passed",
-      "seconds": 0.46
+      "seconds": 0.207
     },
     {
       "scenario": "test_meaningful_or_confirmed_rows_cannot_be_overwritten[\\u5df2\\u7ecf\\u586b\\u5199\\u7684\\u4eba\\u5de5\\u5185\\u5bb9-review]",
       "status": "passed",
-      "seconds": 0.336
+      "seconds": 0.148
     },
     {
       "scenario": "test_meaningful_or_confirmed_rows_cannot_be_overwritten[-confirmed]",
       "status": "passed",
-      "seconds": 0.362
+      "seconds": 0.137
     },
     {
       "scenario": "test_parse_does_not_overwrite_a_draft_created_after_initial_check",
       "status": "passed",
-      "seconds": 0.417
+      "seconds": 0.266
     }
   ]
 }

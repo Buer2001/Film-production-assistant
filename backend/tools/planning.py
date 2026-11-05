@@ -31,29 +31,29 @@ def check_tasks(tasks, settings):
             if task['status'] not in ('cancelled', 'completed') and before['status'] == 'cancelled':
                 raise BusinessError(422, '仍被依赖的任务不能取消，请先调整依赖')
             if task.get('planned_start') and before.get('planned_end') and task['planned_start'] < before['planned_end']:
-                warnings.append({'task_id': key, 'message': '开始日期早于前置任务的计划完成日期'})
+                warnings.append({'code': 'dependency_start_before', 'task_id': key, 'message': '开始日期早于前置任务的计划完成日期'})
             if task.get('planned_end') and before.get('planned_end') and task['planned_end'] < before['planned_end']:
-                warnings.append({'task_id': key, 'message': '完成日期早于前置任务的计划完成日期'})
+                warnings.append({'code': 'dependency_end_before', 'task_id': key, 'message': '完成日期早于前置任务的计划完成日期'})
         start, end = task.get('planned_start'), task.get('planned_end')
         if task['status'] not in ('completed', 'cancelled'):
             if end and end < today().isoformat():
-                warnings.append({'task_id': key, 'message': '已逾期或建议日期已经过去，请核对是否来得及'})
+                warnings.append({'code': 'overdue_or_past', 'task_id': key, 'message': '已逾期或建议日期已经过去，请核对是否来得及'})
             if not end:
-                warnings.append({'task_id': key, 'message': '完成日期待定'})
+                warnings.append({'code': 'due_unknown', 'task_id': key, 'message': '完成日期待定'})
         for c in detail['constraints']:
             target = c.get('date')
             if c['kind'] == 'relative_to_milestone':
                 anchor = settings.get(c['milestone'])
                 if not anchor:
-                    warnings.append({'task_id': key, 'message': '时间约束对应的项目节点日期未确定'})
+                    warnings.append({'code': 'milestone_missing', 'task_id': key, 'message': '时间约束对应的项目节点日期未确定'})
                 if anchor:
                     target = (datetime.fromisoformat(anchor).date() + timedelta(days=c['offset_days'])).isoformat()
             actual = start if c['kind'] == 'start_on_or_after' else end
             violated = actual and target and (actual < target if c['kind'] == 'start_on_or_after' else actual > target)
             if violated:
-                warnings.append({'task_id': key, 'message': '安排违反时间约束' + ('（已确认硬期限）' if c['confirmation'] == 'confirmed' and c['strength'] == 'hard' else '（需核对）')})
+                warnings.append({'code': 'constraint_violated', 'task_id': key, 'message': '安排违反时间约束' + ('（已确认硬期限）' if c['confirmation'] == 'confirmed' and c['strength'] == 'hard' else '（需核对）')})
             if c['confirmation'] == 'pending':
-                warnings.append({'task_id': key, 'message': '时间约束尚未确认：' + (c['source'] or '请补充来源')})
+                warnings.append({'code': 'constraint_pending', 'task_id': key, 'message': '时间约束尚未确认：' + (c['source'] or '请补充来源')})
     # visiting 只记录当前递归路径以识别环；done 避免共享前置任务被重复遍历。
     visiting, done = set(), set()
     # 用途：以深度优先遍历检测依赖环。

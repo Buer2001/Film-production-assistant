@@ -6,6 +6,7 @@ import ScriptWorkspace from './features/scripts/ScriptWorkspace';
 import PlanningWorkspace from './features/planning/PlanningWorkspace';
 import ShootingWorkspace from './features/shooting/ShootingWorkspace';
 import NoticeWorkspace from './features/shooting/NoticeWorkspace';
+import AgentWorkspace from './features/agent/AgentWorkspace';
 import useProductionWorkspace from './features/production/useProductionWorkspace';
 import { ProductionPages, ProductionAssistant, RecordEditor } from './features/production/ProductionPages';
 import { tabs } from './features/production/constants';
@@ -44,10 +45,11 @@ function App() {
         {tab === '项目日程' ? <PlanningWorkspace key={pid} pid={pid} onLockChange={setScriptBlocked}/>
           : tab === '拍摄安排' ? <ShootingWorkspace key={pid} pid={pid} onLockChange={setScriptBlocked} onChanged={load} legacy={state.records.filter(r => r.kind === 'schedule')}/>
           : tab === '通告' ? <NoticeWorkspace key={pid} pid={pid} onLockChange={setScriptBlocked} onChanged={load} published={state.notices}/>
+          : tab === '制片助手' ? <AgentWorkspace key={pid} pid={pid} onLockChange={setScriptBlocked} onChanged={load}/>
           : <ProductionPages workspace={workspace}/>}
       </>}
     </main>
-    {tab !== '项目日程' && !shootingPage && <ProductionAssistant workspace={workspace}/>}
+    {tab !== '项目日程' && !shootingPage && tab !== '制片助手' && <ProductionAssistant workspace={workspace}/>}
     <RecordEditor workspace={workspace}/>
   </div>;
 }

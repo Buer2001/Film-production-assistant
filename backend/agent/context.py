@@ -1,4 +1,4 @@
-# 为对话组装有界项目索引和最近三轮会话，完整事实通过工具按需读取。
+# 文件职责：为旧对话组装有界项目索引，为 V5 组装范围相关的正式资料快照。
 import json
 from backend.models.event import Event
 from backend.service.project import rows, state
@@ -25,3 +25,34 @@ def build_context(s, pid, session_id):
         messages.extend([{'role': 'user', 'content': event.data['message']},
                          {'role': 'assistant', 'content': event.data['answer']}])
     return json.dumps(context, ensure_ascii=False), messages
+
+
+# 组装 V5 步骤所需的正式资料快照；只保留范围相关的有界字段，不灌入整套项目事实。
+def build_run_context(session, pid, run_state):
+    # 延迟导入，避免上下文模块与服务层在导入阶段互相依赖。
+    from backend.service import planning, shooting
+    plan = planning.read(session, pid)
+    data = shooting.read(session, pid)
+    tasks = [{'id': row['id'], 'title': row['title'], 'phase': row['phase'], 'status': row['status'],
+              'planned_start': row['planned_start'], 'planned_end': row['planned_end'],
+              'dependencies': row['details'].get('dependencies', []),
+              'scene_refs': row['details'].get('scene_refs', []),
+              'estimate_days': row['details'].get('estimate_days')}
+             for row in data['tasks'][:200]]
+    items = [{'id': row['id'], **{key: row['data'].get(key) for key in
+              ('title', 'kind', 'status', 'start_at', 'end_at', 'scene_id', 'location')}}
+             for row in data['items'][:200]]
+    scenes = [{'id': row['id'], 'scene_number': row['scene_number'], 'location': row['location']}
+              for row in data['scenes'][:200]]
+    people = [{'id': row['id'], 'name': row['name'], 'department': row.get('department', '')}
+              for row in data['people']]
+    resources = [{'id': row['id'], 'title': row['data'].get('title'),
+                  'preparation': (row['data'].get('preparation') or {}).get('status', 'pending')}
+                 for row in data['resources']]
+    return {'scope': run_state.get('scope'), 'message': run_state.get('message', ''),
+            'settings': plan['settings'], 'source': plan['source'],
+            'constraints': run_state.get('constraints') or [],
+            'assumptions': run_state.get('assumptions') or [],
+            'impact': run_state.get('impact'),
+            'tasks': tasks, 'items': items, 'scenes': scenes,
+            'people': people, 'resources': resources}
