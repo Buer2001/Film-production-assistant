@@ -167,7 +167,7 @@ npm run build
 Pop-Location
 ```
 
-冒烟脚本使用临时服务和临时 SQLite，不影响正式数据库。具体检查范围和历史结果见 [验证记录](docs/verification.md) 及 [评估说明](docs/analysis-evaluation.md)。
+冒烟脚本使用临时服务和临时 SQLite，不影响正式数据库。具体检查范围和历史结果见 [验证记录](docs/verification.md)。
 
 ## 文档导航
 
@@ -175,7 +175,5 @@ Pop-Location
 | --- | --- |
 | [详细使用说明](docs/usage-guide.md) | 原 README 保留的操作细节、模型配置、数据库说明和版本记录 |
 | [整体架构](docs/architecture.md) | 后端分层、模块职责和工程组织 |
-| [流式剧本拆解](docs/streaming-breakdown.md) | 逐场处理、草稿恢复、确认入库及失败处理 |
-| [拍摄管理](docs/shooting-v4-architecture.md) | 拍摄安排、逐场日志和每日通告设计 |
+| [V5 Agent 设计](docs/v5-agent-design.md) | 状态机、联合草稿和受控执行 |
 | [验证记录](docs/verification.md) | 已执行检查、验证环境和待验收范围 |
-| [评估说明](docs/analysis-evaluation.md) | 离线评估方法及结果边界 |

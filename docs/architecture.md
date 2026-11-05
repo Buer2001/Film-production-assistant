@@ -1,10 +1,6 @@
 # 代码架构
 
-2026-11-04 V4 首版：业务主线为“项目 → 剧本 → 项目准备日程 → 编排拍摄大计划 → 每日通告 → 实施拍摄 → 拍摄日志 → 后续跟进及收尾”。新增 shooting_items、shooting_logs，复用人员、资源、准备任务和通告表；notices 的 version=0 保存执行信息草稿，正版本冻结发布快照。模块职责、数据关系、事务及兼容边界见 [V4 拍摄管理架构](shooting-v4-architecture.md)，真实使用待验收。
-
-2026-11-03 V3 扩展：人员新增 `project_people`；资源沿用 `records`，任务沿用 `project_tasks`。人员、资源、任务共用时间 Schema，筹备检查采用 Service 汇集数据、tools 纯规则计算，未新增 Agent 工具或依赖。当前分层、事务和兼容细节见 [V3 筹备落实](preparation-v3.md)。下文 2026-10-31 内容记录原分层整理，表结构不变的描述仅指当次整理。
-
-2026-10-31：按用户确认的技术层分包，层包内再按业务组织。原来按 production/业务 分文件的布局已移除。Agent按用户后续确认，作为独立模块集中管理。
+模块化单体：FastAPI、SQLAlchemy、React。项目单制片本地使用，业务按技术层组织，Agent 专用流程集中管理。
 
 ```text
 backend/
@@ -16,7 +12,7 @@ backend/
 ├─ dao/                    # SQL读写
 │  ├─ script/              # 剧本版本和场次
 │  └─ project.py ...       # 项目、记录、草稿、通告、事件
-├─ models/                 # ORM表定义，含原有表和两张V1表
+├─ models/                 # ORM 表定义
 ├─ schemas/                # Pydantic输入输出、模型提取结构
 ├─ agent/                  # Agent接口、循环、上下文、工具、Schema、专用提示词
 ├─ ai/                     # 共用模型通信、剧本提取、提示词
@@ -48,7 +44,10 @@ Router → Service → DAO → 数据库。Service 可以调用 AI 和工具；A
 ```text
 backend/agent/
 ├─ router.py       # Agent HTTP接口
-├─ runner.py       # 多步模型/工具调用循环
+├─ runner.py       # 旧助手循环与 V5 状态机执行
+├─ state_machine.py # V5 状态转换
+├─ state.py         # 持久化运行状态
+├─ steps.py         # 理解、生成、检查和复核
 ├─ context.py      # 上下文组织
 ├─ tools.py        # 工具注册和服务调用适配
 ├─ schemas.py      # Agent请求结构
@@ -71,3 +70,34 @@ main注册agent/router.py。Agent复用ai/client.py、共用提示词读取、Se
 HTTP路径、请求响应字段、表名及列定义保持不变；不双写拆解结果，不自动迁移旧场次，不引入新依赖。Python内部导入路径随本次包重组更新，外部脚本如直接导入旧 backend.production 或分散的 service.agent、router.agent，需要同步改用现有层包及 backend.agent 路径。
 
 MySQL历史只读检查改为锁定后的当前读，避免可重复读快照继续允许修改已成为历史的版本。已有测试包含当前读模拟回归和MySQL SQL编译检查，尚未进行真实MySQL并发验收。
+
+## 核心数据和边界
+
+| 业务 | 数据归属 | 关键约束 |
+|---|---|---|
+| 剧本 | scripts、scene_breakdowns；确认前使用文件草稿 | 保留版本身份，人工确认事务入库 |
+| 项目日程 | project_plans、project_tasks | 独立日程 revision，依赖检查和人工字段保护 |
+| 筹备落实 | project_people、records 中的资源、任务 details | 稳定 ID 关联，未知档期不等于可用 |
+| 拍摄管理 | shooting_items、shooting_logs | 支持并行和跨午夜，日志保留实际结果及补拍来源 |
+| 通告 | notices | version=0 为草稿，发布为冻结快照，相关来源变化提示复核 |
+| V5 | agent_runs、agent_drafts、agent_executions | 持久化状态机、联合草稿、统一事务及幂等凭据 |
+
+### 剧本解析
+
+后台逐场处理由 service/script/jobs.py 管理，SSE 断开不取消任务。文件草稿通过锁和原子替换保存；编辑 revision 与进度 sequence 分离，edited_fields 保护人工内容。重复确认幂等，正式入库检查来源版本。原文证据匹配不保证语义准确或没有遗漏。
+
+正文非空白字符由程序统计为 word_count，不使用模型估计页数。自定义列仅由人工填写，隐藏不删除历史值。数据库和 .drafts/scripts 需一起备份；文件草稿目前仅支持本机单进程，不用于多实例共享。
+
+### 人员资源和拍摄
+
+人员是管理资料，不是登录账号。任务按稳定 ID 关联人员和资源，手填同名不自动绑定。资源联系人不自动占用联系人的档期；任务期限不代替实际使用时段。准备检查读取正式事实，以纯规则实时计算，不存一套重复检查状态。
+
+拍摄项引用已确认正式场次，保留剧本版本身份；已有日志的安排不可随意换绑场次。仅实际共享的人员资源占用触发重叠检查，未知资料提示核实，不把所有并行安排视为冲突。旧 records 排期保留兼容，不自动迁移或双写。
+
+通告发布检查相关来源并冻结快照，按日递增版本，支持 TXT 导出，不自动发送。无关日期或场次变化不统一使通告失效。日志记录不等于宣布整场拍完。
+
+### V5 联合调整
+
+一个 Agent、首次编排和变化后重排两条工作流，自写持久化状态机，不引入 LangGraph。模型等待不持有业务事务；候选在内存试算，程序检查后进行模型复核，必要时请求人工决定。任务和拍摄安排在同一业务事务执行，包含事件、草稿状态及唯一执行凭据，失败整体回滚，重试返回已有结果。
+
+具体限制及状态转换见 [V5 设计](v5-agent-design.md)，验证范围见 [验证记录](verification.md)。

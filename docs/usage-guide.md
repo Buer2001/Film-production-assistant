@@ -14,7 +14,7 @@ Chen's Practical tools.
 - 保存失败保留当前输入，版本冲突可刷新来源后再核对。未保存时保护项目和页面切换。
 - 启动增量创建 `shooting_items`、`shooting_logs`；通告草稿复用 `notices`，不清库、不自动迁移旧排期。不新增 Agent、RAG、自动排程或逐镜逐条场记。
 
-详见 [V4 架构](shooting-v4-architecture.md) 和 [验证记录](verification.md)。真实剧组使用质量尚待验收。
+详见 [整体架构](architecture.md) 和 [验证记录](verification.md)。真实剧组使用质量尚待验收。
 
 ## V1 剧本拆解
 
@@ -29,7 +29,7 @@ Chen's Practical tools.
 7. 导入新版前先确认当前版；新版保留旧版，原文相同场次沿用已确认人工修改，变化场次提示匹配和差异。旧版只读。
 8. 导出基础XLSX包含拆解表和变更说明，未确认结果标注草稿，已排除行在工作台保留。尚未实测桌面Excel/WPS。
 
-草稿目录是确认前的恢复依据，请在需要保留未确认工作时同时备份；该目录被Git忽略。当前任务执行范围为本机单进程，不支持多实例共享文件草稿。更多实现和故障恢复说明见 [流式拆解](streaming-breakdown.md)。
+草稿目录是确认前的恢复依据，请在需要保留未确认工作时同时备份；该目录被Git忽略。当前任务执行范围为本机单进程，不支持多实例共享文件草稿。更多实现和故障恢复说明见 [整体架构](architecture.md)。
 
 数据库只新增 `scripts`、`scene_breakdowns` 两张表。Router → Service → DAO 分层，AI 提取、原文校验、输入转换及导出分开；模型通信复用公共客户端，不使用 Agent 循环。入口为 `/api/projects/{pid}/script-workspace`。
 
@@ -205,4 +205,4 @@ npm run build
 
 `scripts/smoke.py` 会自己启动临时 uvicorn 和临时 SQLite，走完建项目到发布通告、导出、影响分析的主流程，结束时清理，不影响正式数据库。
 
-离线评估报告写入 `docs/evaluation-report.json`，具体范围见 [评估说明](analysis-evaluation.md)。模拟模型通过率是业务契约回归结果，不是真实模型准确率。
+离线评估报告写入 `docs/evaluation-report.json`，具体范围见 [验证记录](verification.md)。模拟模型通过率是业务契约回归结果，不是真实模型准确率。
