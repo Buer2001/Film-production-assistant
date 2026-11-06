@@ -14,6 +14,7 @@ const STATES = { available: '可用', unavailable: '不可用', partial: '部分
 export default function AvailabilityBoard({ kind, people = EMPTY, resources = EMPTY, tasks = EMPTY, busy = false,
   onSelect, selected, onAdd, onIncomplete, children }) {
   const [date, setDate] = useState(todayKey);
+  const [display, setDisplay] = useState('list');
   const [range, setRange] = useState('month');
   // 两类资料分别保存筛选条件，切换页签不把姓名当成资源搜索；周日期仍保持一致。
   const [filters, setFilters] = useState({ people: { search: '', category: '' }, resources: { search: '', category: '' } });
@@ -44,17 +45,18 @@ export default function AvailabilityBoard({ kind, people = EMPTY, resources = EM
   return <section className="availability-board" aria-label={`${noun}档期`}>
     <div className="availability-toolbar">
       <div className="availability-week-nav">
-        <button type="button" disabled={busy} aria-label="上一时段" onClick={() => moveRange(-1)}>‹</button>
-        <h2>档期表</h2>
-        <span>{week.start} 至 {week.days.at(-1)?.date}</span>
-        <button type="button" disabled={busy} aria-label="下一时段" onClick={() => moveRange(1)}>›</button>
+        {display === 'calendar' && <button type="button" disabled={busy} aria-label="上一时段" onClick={() => moveRange(-1)}>‹</button>}
+        <h2>{noun}{display === 'list' ? '清单' : '档期'}</h2>
+        {display === 'calendar' && <span>{week.start} 至 {week.days.at(-1)?.date}</span>}
+        {display === 'calendar' && <button type="button" disabled={busy} aria-label="下一时段" onClick={() => moveRange(1)}>›</button>}
       </div>
-      <div className="availability-toolbar-actions">
-        <label className="availability-date-label">范围<select value={range} disabled={busy} onChange={e => { setRange(e.target.value); onSelect?.(null); }}><option value="week">周</option><option value="fortnight">双周</option><option value="month">月</option></select></label>
+      <div className="availability-toolbar-actions"><div className="workspace-tabs" aria-label={`${noun}视图`}>{[['list','清单'],['calendar','档期']].map(([key,label]) => <button type="button" disabled={busy} aria-pressed={display === key} key={key} onClick={() => {setDisplay(key); onSelect?.(null);}}>{label}</button>)}</div>
+        {display === 'calendar' && <><label className="availability-date-label">范围<select value={range} disabled={busy} onChange={e => { setRange(e.target.value); onSelect?.(null); }}><option value="week">周</option><option value="fortnight">双周</option><option value="month">月</option></select></label>
         <button type="button" className="availability-today" disabled={busy} onClick={() => changeDate(todayKey())}>今天</button>
         <label className="availability-date-label">选择日期
           <input type="date" value={date} disabled={busy} onChange={event => { if (event.target.value) changeDate(event.target.value); }}/>
         </label>
+        </>}
         {onAdd ? <button type="button" className="availability-primary" disabled={busy} onClick={onAdd}>新增{noun}</button> : null}
       </div>
     </div>
@@ -67,7 +69,7 @@ export default function AvailabilityBoard({ kind, people = EMPTY, resources = EM
       <span className="availability-count">{rows.length} {isPeople ? '位人员' : '项资源'}</span>
     </div>
     <div className={`availability-layout${children ? ' availability-has-detail' : ''}`}>
-      <div className="availability-table-wrap" tabIndex={0} role="region" aria-label="可横向滚动的档期表">
+      {display === 'list' ? <div className="material-list"><table><thead><tr><th>{noun}</th><th>{isPeople ? '部门 / 岗位' : '类型'}</th><th>档期登记</th><th>备注</th><th>操作</th></tr></thead><tbody>{rows.map(row => <tr key={row.id}><td><button type="button" disabled={busy} onClick={() => select(row, week.start)}>{row.name}</button></td><td>{row.subtitle || '待填'}</td><td>{(isPeople ? row.entity.availability : row.entity.data.preparation?.availability)?.length ? '已登记，点击查看' : '未知，尚未登记'}</td><td>{(isPeople ? row.entity.notes : row.entity.data.preparation?.notes) || '暂无备注'}</td><td><button type="button" disabled={busy} onClick={() => select(row, week.start)}>查看资料</button></td></tr>)}</tbody></table>{!rows.length && <p>暂无符合条件的{noun}。</p>}</div> : <div className="availability-table-wrap" tabIndex={0} role="region" aria-label="可横向滚动的档期表">
         <table className="availability-table" style={{ minWidth: 210 + week.days.length * (range === 'month' ? 44 : 64) }}>
           <caption className="availability-sr-only">{noun}档期，{week.start}开始的档期</caption>
           <thead><tr><th scope="col">{isPeople ? '人员 / 职务' : '资源 / 类型'}</th>
@@ -96,14 +98,15 @@ export default function AvailabilityBoard({ kind, people = EMPTY, resources = EM
         </table>
         {!rows.length ? <div className="availability-empty">{week.rows.length ? '未找到符合筛选条件的记录，请调整搜索或筛选。' : `还没有${noun}资料，请先新增${noun}并登记可用时段。`}</div> : null}
       </div>
+      }
       {children ? <aside className="availability-detail" aria-label="档期详情">{children}</aside> : null}
     </div>
-    <ul className="availability-legend" aria-label="档期图例">
+    {display === 'calendar' && <><ul className="availability-legend" aria-label="档期图例">
       {Object.entries(STATES).map(([state, label]) => <li key={state}><i className={`availability-state-${state}`}/>{label}</li>)}
       <li><i className="availability-legend-task"/>已安排任务（计划使用时段）</li>
       <li><i className="availability-legend-overlap"/>重叠待核对</li>
     </ul>
-    <p className="availability-note">任务期限不等于使用时间；空白档期不代表可用，部分可用需查看具体时段。</p>
+    <p className="availability-note">任务期限不等于使用时间；空白档期不代表可用，部分可用需查看具体时段。</p></>}
     {week.incomplete.length ? <details className="availability-incomplete">
       <summary>{week.incomplete.length} 项任务档期资料待补充</summary>
       <ul>{week.incomplete.map(({ task, reasons }) => <li key={task.id}><div><strong>{task.title || task.name || '未命名任务'}</strong><p>{reasons.join('；')}</p></div>

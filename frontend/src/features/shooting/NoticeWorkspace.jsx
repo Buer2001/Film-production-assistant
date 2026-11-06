@@ -14,8 +14,8 @@ function NoticePreview({ source, details }) {
   })}{!source.items.length && <p className="shoot-muted">当天没有正式安排，请先到拍摄安排维护。</p>}</div></div>;
 }
 
-export default function NoticeWorkspace({ pid, onLockChange, onChanged, published = [] }) {
-  const [day, setDay] = useState(today), [data, setData] = useState(null), [details, setDetails] = useState({ ...emptyDetails });
+export default function NoticeWorkspace({ pid, onLockChange, onChanged, initialDay, onDayChange, published = [] }) {
+  const [day, setDay] = useState(initialDay || today), [data, setData] = useState(null), [details, setDetails] = useState({ ...emptyDetails });
   const [baseline, setBaseline] = useState(JSON.stringify(emptyDetails)), [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
   const pending = useRef(false), requestId = useRef(0), alive = useRef(true);
   const dirty = JSON.stringify(details) !== baseline;
@@ -61,7 +61,7 @@ export default function NoticeWorkspace({ pid, onLockChange, onChanged, publishe
     finally { pending.current = false; if (alive.current) setBusy(false); }
   }
   const notices = [...new Map([...published, ...(data?.notices || [])].map(n => [n.id, n])).values()].sort((a, b) => b.date.localeCompare(a.date) || b.version - a.version);
-  return <div className="shoot-workspace"><div className="shoot-topline"><div><span className="shoot-eyebrow">CALL SHEET / 每日通告</span><p>检查当天安排，补充执行信息，再发布固定版本。</p></div><label className="shoot-date-input">拍摄日期<input type="date" required disabled={busy || dirty} value={day} onChange={e => e.target.value && setDay(e.target.value)}/></label></div>
+  return <div className="shoot-workspace"><div className="shoot-topline"><div><span className="shoot-eyebrow">CALL SHEET / 每日通告</span><p>检查当天安排，补充执行信息，再发布固定版本。</p></div><label className="shoot-date-input">拍摄日期<input type="date" required disabled={busy || dirty} value={day} onChange={e => { if (e.target.value) { setDay(e.target.value); onDayChange?.(e.target.value); } }}/></label></div>
     {error && <div className="error" role="alert">{error}<button disabled={busy} onClick={() => load(!data)}>刷新来源，保留输入</button></div>}
     {message && <p className="shoot-success" role="status">{message}</p>}
     {!data ? <section><p role="status">{busy ? '正在读取当天安排…' : '请重试读取当天安排。'}</p></section> : <>

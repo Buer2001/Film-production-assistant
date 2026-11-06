@@ -112,7 +112,7 @@ export default function PlanningWorkspace({ pid, onLockChange }) {
   }
   return <div className="planning-workspace">
     <nav className="planning-view-tabs" aria-label="项目日程视图">
-      {[['tasks', '任务日程'], ['people', '人员档期'], ['resources', '资源档期']].map(([key, label]) => <button key={key} type="button" aria-pressed={view === key} disabled={unavailable} onClick={() => changeView(key)}>{label}</button>)}
+      {[['tasks', '任务'], ['people', '人员'], ['resources', '资源']].map(([key, label]) => <button key={key} type="button" aria-pressed={view === key} disabled={unavailable} onClick={() => changeView(key)}>{label}</button>)}
     </nav>
     {support.error && <p className="error" role="alert">人员或筹备检查读取失败：{support.error}。当前人员资料可能已过期，已暂停新增关联；请重新读取。<button disabled={busy || dirty} onClick={() => run()}>重新读取</button></p>}
     {error && !editing && <p className="error" role="alert">{error}<button disabled={dirty || busy} onClick={() => run()}>重新读取</button></p>}
@@ -140,7 +140,7 @@ export default function PlanningWorkspace({ pid, onLockChange }) {
           <h4>关联任务</h4>{data.tasks.filter(task => task.status !== 'cancelled' && (view === 'people' ? (task.details.person_ids || []).includes(selectedRow.id) : (task.details.resource_refs || []).some(ref => ref.record_id === selectedRow.id))).map(task => <p key={task.id}><button type="button" disabled={unavailable} onClick={() => openTask(task)}>{task.title}</button></p>)}
           <button type="button" disabled={unavailable} onClick={() => { const task = emptyTask(); task.details.usage_period = { start_date: selection.date, end_date: selection.date }; if (view === 'people') { task.details.person_ids = [selectedRow.id]; task.details.requires_people = true; } else task.details.resource_refs = [{ record_id: selectedRow.id, name: selectedRow.name }]; changeView('tasks'); setEditing(task); }}>新建关联任务</button>
           <div className="plan-actions"><button type="button" disabled={unavailable} onClick={() => editMaterial(true)}>添加档期</button><button type="button" disabled={unavailable} onClick={() => editMaterial()}>编辑资料</button></div>
-        </> : <p className="plan-muted">{selection ? '资料已变化或已删除，请刷新后重新选择。' : '点击姓名、资源名称或日期格查看档期；点击深绿安排查看关联任务。'}</p>}
+        </> : <p className="plan-muted">{selection ? '资料已变化或已删除，请刷新后重新选择。' : '点击姓名、资源名称或日期格查看档期；点击已安排任务查看关联任务。'}</p>}
       </div>}
     </AvailabilityBoard>)}
     {view === 'tasks' && <>
